@@ -716,13 +716,13 @@ const Installations = () => {
 
           <div className="space-y-2">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Description <span className="text-rose-500">*</span>
+              Description <span className="text-slate-400 font-normal text-xs">(optionnel)</span>
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="input-field min-h-[100px]"
-              required
+              placeholder="Description de l'installation..."
             />
           </div>
 

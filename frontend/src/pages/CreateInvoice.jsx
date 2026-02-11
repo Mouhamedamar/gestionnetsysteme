@@ -5,6 +5,8 @@ import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import SearchableSelect from '../components/SearchableSelect';
+import InvoicePDF from '../components/InvoicePDF';
+import ProFormaInvoicePDF from '../components/ProFormaInvoicePDF';
 import { formatCurrency } from '../utils/formatCurrency';
 
 const CreateInvoice = () => {
@@ -30,6 +32,8 @@ const CreateInvoice = () => {
   });
 
   const [showClientModal, setShowClientModal] = useState(false);
+  const [createdInvoice, setCreatedInvoice] = useState(null);
+  const [pdfAfterCreate, setPdfAfterCreate] = useState({ invoice: null, isProforma: false });
 
   // Charger les clients au montage
   useEffect(() => {
@@ -105,9 +109,9 @@ const CreateInvoice = () => {
     }
 
     try {
-      await addInvoice(invoiceData);
+      const created = await addInvoice(invoiceData);
       showNotification(isProforma ? 'Facture pro forma créée avec succès' : 'Facture créée avec succès', 'success');
-      navigate(isProforma ? '/proforma-invoices' : '/invoices');
+      setCreatedInvoice(created);
     } catch (error) {
       console.error('Erreur lors de la création de la facture:', error);
       showNotification('Erreur lors de la création de la facture', 'error');
@@ -405,6 +409,30 @@ const CreateInvoice = () => {
           onSave={handleSaveClient}
         />
       </Modal>
+
+      {createdInvoice && (
+        isProforma ? (
+          <ProFormaInvoicePDF
+            invoice={createdInvoice}
+            onClose={() => {
+              setCreatedInvoice(null);
+              navigate('/proforma-invoices');
+            }}
+            autoDownload
+            silent
+          />
+        ) : (
+          <InvoicePDF
+            invoice={createdInvoice}
+            onClose={() => {
+              setCreatedInvoice(null);
+              navigate('/invoices');
+            }}
+            autoDownload
+            silent
+          />
+        )
+      )}
     </>
   );
 };

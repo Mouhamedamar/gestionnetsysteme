@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { mockProducts, mockStockMovements, mockDashboardStats } from '../data/mockData';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const AppContext = createContext();
 
@@ -1110,17 +1110,26 @@ export const AppProvider = ({ children }) => {
 
       const newInvoice = await response.json();
       console.log('Nouvelle facture créée:', newInvoice); // Log pour vérifier les données
+      const rawItems = newInvoice.invoice_items ?? newInvoice.items ?? invoiceData.items ?? [];
+      const mapItem = (item) => {
+        const productId = item.product ?? item.product_id;
+        const product = products.find(p => p.id === productId || p.id === parseInt(productId, 10));
+        return {
+          id: item.id,
+          product: item.product ?? item.product_id,
+          quantity: item.quantity ?? 0,
+          unit_price: item.unit_price ?? 0,
+          product_name: item.product_name ?? item.product_detail?.name ?? product?.name ?? 'Produit'
+        };
+      };
       const mappedInvoice = {
         ...newInvoice,
-        items: (newInvoice.invoice_items || []).map(item => ({
-          ...item,
-          product_name:
-            item.product_name ||
-            item.product_detail?.name ||
-            ''
-        })),
+        invoice_number: newInvoice.invoice_number ?? newInvoice.number ?? (newInvoice.id ? `FACTURE-${newInvoice.id}` : 'FACTURE-NEW'),
+        date: newInvoice.date ?? new Date().toISOString().slice(0, 10),
+        client_name: newInvoice.client_name ?? invoiceData.client_name,
+        items: Array.isArray(rawItems) ? rawItems.map(mapItem) : [],
         is_proforma: invoiceData.is_proforma || false,
-        is_cancelled: false // Ajouter l'indicateur is_cancelled
+        is_cancelled: false
       };
 
       // Utiliser la forme fonctionnelle pour garantir la mise à jour correcte du state

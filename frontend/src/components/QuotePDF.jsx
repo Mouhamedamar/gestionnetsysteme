@@ -1,14 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Package, Phone, Mail, Globe, MapPin, MessageCircle } from 'lucide-react';
 import jsPDF from "jspdf";
 import DocumentFooter from './DocumentFooter';
 import html2canvas from 'html2canvas';
 import { formatCurrency } from '../utils/formatCurrency';
+import { getQuotePdfFilename } from '../utils/pdfFilename';
 
 // Même image d'en-tête que la facture (frontend/public/invoice-header.png)
 const INVOICE_HEADER_IMAGE = '/invoice-header.png';
 
-const QuotePDF = ({ quote, onClose }) => {
+const QuotePDF = ({ quote, onClose, autoDownload = false, silent = false }) => {
   const page1Ref = useRef(null);
   const page2Ref = useRef(null);
 
@@ -43,14 +44,21 @@ const QuotePDF = ({ quote, onClose }) => {
       await addPageFromRef(page1Ref, false);
       await addPageFromRef(page2Ref, true);
 
-      pdf.save(`devis-${quote.quote_number}.pdf`);
-      alert('PDF généré avec succès !');
+      const clientName = quote.client_name || quote.client?.name;
+      pdf.save(getQuotePdfFilename(clientName));
+      if (!silent) alert('PDF généré avec succès !');
       if (onClose) onClose();
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
-      alert(`Erreur lors de la génération du PDF: ${error.message}`);
+      if (!silent) alert(`Erreur lors de la génération du PDF: ${error.message}`);
     }
   };
+
+  useEffect(() => {
+    if (!autoDownload || !quote) return;
+    const t = setTimeout(() => { handleDownload(); }, 800);
+    return () => clearTimeout(t);
+  }, [autoDownload]);
 
   const handlePrint = () => {
     window.print();

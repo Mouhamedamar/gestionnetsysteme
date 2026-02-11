@@ -119,6 +119,12 @@ class InterventionViewSet(viewsets.ModelViewSet):
             technician = User.objects.get(id=technician_id)
             intervention.technician = technician
             intervention.save()
+            # Notifier le technicien par email et SMS
+            try:
+                from .notifications import notify_technician_assignment
+                notify_technician_assignment(intervention, technician)
+            except Exception as e:
+                logger.warning("Notification assignation non envoyée: %s", e, exc_info=True)
             serializer = self.get_serializer(intervention)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:

@@ -31,7 +31,7 @@ class Installation(models.Model):
         verbose_name="Numéro d'installation"
     )
     title = models.CharField(max_length=200, verbose_name="Titre")
-    description = models.TextField(verbose_name="Description")
+    description = models.TextField(blank=True, null=True, verbose_name="Description")
     installation_type = models.CharField(
         max_length=20,
         choices=TYPE_CHOICES,

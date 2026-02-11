@@ -30,7 +30,7 @@ class Intervention(models.Model):
         verbose_name="Numéro d'intervention"
     )
     title = models.CharField(max_length=200, verbose_name="Titre")
-    description = models.TextField(verbose_name="Description")
+    description = models.TextField(blank=True, null=True, verbose_name="Description")
     client = models.ForeignKey(
         Client,
         on_delete=models.PROTECT,

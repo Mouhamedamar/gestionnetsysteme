@@ -1,14 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Package } from 'lucide-react';
 import jsPDF from "jspdf";
 import DocumentFooter from './DocumentFooter';
 import html2canvas from 'html2canvas';
 import { formatCurrency } from '../utils/formatCurrency';
+import { getProformaPdfFilename } from '../utils/pdfFilename';
 
 // Même image d'en-tête que la facture (frontend/public/invoice-header.png)
 const INVOICE_HEADER_IMAGE = '/invoice-header.png';
 
-const ProFormaInvoicePDF = ({ invoice, onClose }) => {
+const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false }) => {
   const invoiceRef = useRef(null);
 
   const handleDownload = async () => {
@@ -55,14 +56,21 @@ const ProFormaInvoicePDF = ({ invoice, onClose }) => {
         pdf.addImage(pageImgData, 'PNG', 0, 0, contentWidth, destH);
       }
 
-      pdf.save(`proforma-${invoice.invoice_number}.pdf`);
-      alert('PDF pro forma généré avec succès !');
+      const clientName = invoice.client_name || invoice.client?.name;
+      pdf.save(getProformaPdfFilename(clientName));
+      if (!silent) alert('PDF pro forma généré avec succès !');
       if (onClose) onClose();
     } catch (error) {
       console.error('Erreur lors de la génération du PDF pro forma:', error);
-      alert(`Erreur lors de la génération du PDF pro forma: ${error.message}`);
+      if (!silent) alert(`Erreur lors de la génération du PDF pro forma: ${error.message}`);
     }
   };
+
+  useEffect(() => {
+    if (!autoDownload || !invoice) return;
+    const t = setTimeout(() => { handleDownload(); }, 800);
+    return () => clearTimeout(t);
+  }, [autoDownload]);
 
   const handlePrint = () => {
     window.print();

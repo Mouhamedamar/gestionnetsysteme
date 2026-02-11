@@ -1,14 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Phone, Mail, Globe, MapPin, MessageCircle } from 'lucide-react';
 import jsPDF from "jspdf";
 import DocumentFooter from './DocumentFooter';
 import html2canvas from 'html2canvas';
 import { formatCurrency } from '../utils/formatCurrency';
+import { getInvoicePdfFilename } from '../utils/pdfFilename';
 
 // Chemin de l'image d'en-tête (à placer dans frontend/public/invoice-header.png)
 const INVOICE_HEADER_IMAGE = '/invoice-header.png';
 
-const InvoicePDF = ({ invoice, onClose }) => {
+const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false }) => {
   const page1Ref = useRef(null);  // Partie 1 : en-tête + facture
   const page2Ref = useRef(null);  // Partie 2 : en-tête + bordereau
   const page3Ref = useRef(null);  // Partie 3 : notes + pied de page
@@ -48,14 +49,21 @@ const InvoicePDF = ({ invoice, onClose }) => {
       await addPageToPdf(wrapper2Ref.current, true);
       await addPageToPdf(wrapper3Ref.current, true);
 
-      pdf.save(`facture-${invoice.invoice_number}.pdf`);
-      alert('PDF généré avec succès !');
+      const clientName = invoice.client_name || invoice.client?.name;
+      pdf.save(getInvoicePdfFilename(clientName));
+      if (!silent) alert('PDF généré avec succès !');
       if (onClose) onClose();
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
-      alert(`Erreur lors de la génération du PDF: ${error.message}`);
+      if (!silent) alert(`Erreur lors de la génération du PDF: ${error.message}`);
     }
   };
+
+  useEffect(() => {
+    if (!autoDownload || !invoice) return;
+    const t = setTimeout(() => { handleDownload(); }, 800);
+    return () => clearTimeout(t);
+  }, [autoDownload]);
 
   const handlePrint = () => {
     window.print();

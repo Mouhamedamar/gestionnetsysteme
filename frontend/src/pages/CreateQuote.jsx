@@ -5,6 +5,7 @@ import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import SearchableSelect from '../components/SearchableSelect';
+import QuotePDF from '../components/QuotePDF';
 import { formatCurrency } from '../utils/formatCurrency';
 
 const CreateQuote = () => {
@@ -31,6 +32,7 @@ const CreateQuote = () => {
   });
 
   const [showClientModal, setShowClientModal] = useState(false);
+  const [createdQuote, setCreatedQuote] = useState(null);
 
   // Charger les clients au montage
   useEffect(() => {
@@ -165,9 +167,13 @@ const CreateQuote = () => {
       }
 
       console.log('Données envoyées au backend:', dataToSend);
-      await addQuote(dataToSend);
+      const created = await addQuote(dataToSend);
       showNotification('Devis créé avec succès', 'success');
-      navigate('/quotes');
+      setCreatedQuote({
+        ...created,
+        quote_items: created.quote_items ?? created.items ?? [],
+        client_name: created.client_name ?? quoteData.client_name,
+      });
     } catch (error) {
       console.error('Erreur lors de la création du devis:', error);
       // L'erreur est déjà gérée dans addQuote
@@ -517,6 +523,18 @@ const CreateQuote = () => {
           onSave={handleSaveClient}
         />
       </Modal>
+
+      {createdQuote && (
+        <QuotePDF
+          quote={createdQuote}
+          onClose={() => {
+            setCreatedQuote(null);
+            navigate('/quotes');
+          }}
+          autoDownload
+          silent
+        />
+      )}
     </>
   );
 };

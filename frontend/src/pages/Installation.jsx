@@ -35,7 +35,8 @@ const Installation = () => {
 
     try {
       // Utiliser l'endpoint de vérification d'installation
-      const response = await fetch('http://localhost:8000/api/auth/check-installation/', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/auth/check-installation/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -109,7 +110,8 @@ const Installation = () => {
       setLoading(true);
 
       // Créer l'utilisateur admin via l'endpoint setup-admin
-      const response = await fetch('http://localhost:8000/api/auth/setup-admin/', {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${baseUrl}/api/auth/setup-admin/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
