@@ -1,0 +1,174 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Carte Leaflet : forcer la hauteur dans les modales */
+.leaflet-container {
+  height: 100%;
+  min-height: 300px;
+  width: 100%;
+  z-index: 0;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-['Outfit',sans-serif] antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Sélection de texte cohérente */
+  ::selection {
+    @apply bg-primary-200 text-primary-900;
+  }
+}
+
+/* Conteneur page et titres (réutilisables sur toutes les pages) */
+.page-container {
+  @apply w-full max-w-[1600px] mx-auto;
+}
+
+.page-header {
+  @apply mb-6 md:mb-8;
+}
+
+.page-title {
+  @apply text-2xl font-black text-slate-800 tracking-tight;
+}
+
+.page-subtitle {
+  @apply text-slate-500 mt-1 text-sm md:text-base;
+}
+
+.page-actions {
+  @apply flex flex-wrap items-center gap-3 mt-4;
+}
+
+/* Liens dans le contenu */
+.content-link {
+  @apply text-primary-600 font-medium hover:text-primary-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded;
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-glass rounded-2xl;
+  }
+
+  /* Boutons : états hover, focus, disabled et accessibilité */
+  .btn-primary {
+    @apply bg-primary-600 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20 flex items-center justify-center gap-2;
+    @apply hover:bg-primary-700 hover:shadow-primary-500/30 active:scale-[0.98] transition-all duration-200;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2;
+    @apply disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-slate-700 px-6 py-2.5 rounded-xl border border-slate-200 font-semibold shadow-sm flex items-center justify-center gap-2;
+    @apply hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition-all duration-200;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2;
+    @apply disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-red-500/20 flex items-center justify-center gap-2;
+    @apply hover:bg-red-600 hover:shadow-red-500/30 active:scale-[0.98] transition-all duration-200;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2;
+    @apply disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* Champs de formulaire : focus visible et lisibilité */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-slate-200 rounded-xl placeholder:text-slate-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/25 focus:border-primary-500 transition-all duration-200;
+    @apply hover:border-slate-300 disabled:bg-slate-50 disabled:cursor-not-allowed;
+  }
+
+  /* Cartes : ombre et survol plus marqués */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-100 p-6 transition-all duration-300;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .card:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.05);
+    @apply border-slate-200;
+  }
+
+  /* Tableaux : en-têtes et cellules */
+  .table-header {
+    @apply bg-slate-50/80 px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200;
+  }
+
+  .table-cell {
+    @apply px-6 py-4 text-sm text-slate-600 border-b border-slate-100;
+  }
+
+  .nav-link-active {
+    @apply bg-primary-50 text-primary-600 font-semibold shadow-sm shadow-primary-100/50;
+  }
+
+  /* Badge / pastille (statut, type) */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-700;
+  }
+  .badge-warning {
+    @apply bg-amber-100 text-amber-700;
+  }
+  .badge-danger {
+    @apply bg-rose-100 text-rose-700;
+  }
+  .badge-neutral {
+    @apply bg-slate-100 text-slate-600;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-blink {
+  0%, 100% { 
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  }
+  50% { 
+    opacity: 0.5;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+  }
+}
+
+.animate-pulse-blink {
+  animation: pulse-blink 1.5s ease-in-out infinite;
+}
+
+/* Styles pour l'impression de la facture */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .invoice-print, .invoice-print * {
+    visibility: visible;
+  }
+  .invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+

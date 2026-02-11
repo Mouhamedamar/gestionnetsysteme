@@ -1,0 +1,23 @@
+
+// CORRECTIF TEMPORAIRE - Ajoutez ceci dans handleSubmit après la ligne "console.log('🔵 Envoi de la requête...');"
+
+console.log('🔍 DEBUG - Contenu FormData:');
+for (let [key, value] of formDataToSend.entries()) {
+  if (value instanceof File) {
+    console.log(`📁 ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+  } else {
+    console.log(`📝 ${key}: ${value}`);
+  }
+}
+
+console.log('🔍 DEBUG - Headers de la requête:');
+console.log('Authorization:', localStorage.getItem('accessToken') ? 'Bearer [TOKEN]' : 'AUCUN TOKEN');
+
+// Ajoutez aussi ceci dans handleFileChange après "console.log('🔵 Fichier détecté:', file);"
+if (file) {
+  console.log('🔍 DEBUG - Détails du fichier:');
+  console.log('  Nom:', file.name);
+  console.log('  Taille:', file.size, 'bytes');
+  console.log('  Type:', file.type);
+  console.log('  Dernière modification:', new Date(file.lastModified));
+}

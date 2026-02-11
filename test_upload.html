@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Images</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background: #8b5cf6;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        #preview {
+            margin-top: 10px;
+            max-width: 200px;
+            max-height: 200px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            display: none;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        .info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Test Upload d'Images - Produit</h1>
+        
+        <div class="form-group">
+            <label>1. D'abord, se connecter:</label>
+            <input type="text" id="username" placeholder="Nom d'utilisateur" value="admin">
+            <input type="password" id="password" placeholder="Mot de passe" value="admin" style="margin-top: 10px;">
+            <button onclick="login()" style="margin-top: 10px;">Se connecter</button>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <form id="productForm" onsubmit="createProduct(event)">
+            <div class="form-group">
+                <label>Nom du produit *</label>
+                <input type="text" id="name" required value="Test Upload Photo">
+            </div>
+
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="description" rows="3">Test d'upload d'image pour vérifier que tout fonctionne</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Catégorie</label>
+                <input type="text" id="category" value="Test">
+            </div>
+
+            <div class="form-group">
+                <label>Quantité *</label>
+                <input type="number" id="quantity" required value="10" min="0">
+            </div>
+
+            <div class="form-group">
+                <label>Prix d'achat (FCFA) *</label>
+                <input type="number" id="purchase_price" required value="1000" min="0" step="0.01">
+            </div>
+
+            <div class="form-group">
+                <label>Prix de vente (FCFA) *</label>
+                <input type="number" id="sale_price" required value="1500" min="0" step="0.01">
+            </div>
+
+            <div class="form-group">
+                <label>Seuil d'alerte *</label>
+                <input type="number" id="alert_threshold" required value="5" min="0">
+            </div>
+
+            <div class="form-group">
+                <label>Photo du produit</label>
+                <input type="file" id="photo" accept="image/*" onchange="previewImage(event)">
+                <img id="preview" alt="Preview">
+            </div>
+
+            <button type="submit">Créer le produit avec photo</button>
+        </form>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8000';
+        let accessToken = '';
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            showResult('Connexion en cours...', 'info');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.access;
+                    showResult('✅ Connexion réussie! Vous pouvez maintenant créer un produit.', 'success');
+                } else {
+                    const error = await response.json();
+                    showResult('❌ Erreur de connexion: ' + (error.error || 'Identifiants invalides'), 'error');
+                }
+            } catch (error) {
+                showResult('❌ Erreur: ' + error.message, 'error');
+            }
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('preview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function createProduct(event) {
+            event.preventDefault();
+            
+            if (!accessToken) {
+                showResult('❌ Veuillez d\'abord vous connecter!', 'error');
+                return;
+            }
+
+            showResult('Création du produit en cours...', 'info');
+
+            const formData = new FormData();
+            formData.append('name', document.getElementById('name').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('category', document.getElementById('category').value);
+            formData.append('quantity', document.getElementById('quantity').value);
+            formData.append('purchase_price', document.getElementById('purchase_price').value);
+            formData.append('sale_price', document.getElementById('sale_price').value);
+            formData.append('alert_threshold', document.getElementById('alert_threshold').value);
+            formData.append('is_active', 'true');
+
+            const photoFile = document.getElementById('photo').files[0];
+            if (photoFile) {
+                formData.append('photo', photoFile);
+                console.log('📸 Photo ajoutée:', photoFile.name, photoFile.size, 'bytes');
+            } else {
+                console.log('⚠️ Aucune photo sélectionnée');
+            }
+
+            try {
+                console.log('🚀 Envoi de la requête...');
+                const response = await fetch(`${BASE_URL}/api/products/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                        // NE PAS définir Content-Type pour FormData!
+                    },
+                    body: formData
+                });
+
+                console.log('📥 Réponse reçue:', response.status);
+                const data = await response.json();
+                console.log('📦 Données:', data);
+
+                if (response.ok) {
+                    let message = '✅ Produit créé avec succès!';
+                    if (data.photo_url) {
+                        message += `<br><br>📸 Photo URL: <a href="${data.photo_url}" target="_blank">${data.photo_url}</a>`;
+                        message += `<br><img src="${data.photo_url}" style="max-width: 200px; margin-top: 10px; border-radius: 5px;">`;
+                    } else {
+                        message += '<br>⚠️ Mais aucune photo n\'a été uploadée';
+                    }
+                    showResult(message, 'success');
+                } else {
+                    showResult('❌ Erreur: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                console.error('❌ Erreur:', error);
+                showResult('❌ Erreur: ' + error.message, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const result = document.getElementById('result');
+            result.innerHTML = message;
+            result.className = type;
+            result.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

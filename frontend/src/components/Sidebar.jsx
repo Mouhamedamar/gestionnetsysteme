@@ -1,0 +1,183 @@
+import { NavLink } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Package,
+  TrendingUp,
+  FileText,
+  User,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Box,
+  FileCheck,
+  Warehouse,
+  Wrench,
+  FileSearch,
+  DollarSign,
+  Settings,
+  MapPin,
+  Clock
+} from 'lucide-react';
+import { useState } from 'react';
+import { useApp } from '../context/AppContext';
+
+const Sidebar = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const { user } = useApp();
+  const role = user?.role || 'admin';
+
+  // Menu pour Admin (accès complet)
+  const adminMenuItems = [
+    { path: '/', label: 'Tableau de Bord', icon: LayoutDashboard },
+    { path: '/products', label: 'Produits', icon: Package },
+    { path: '/stock', label: 'Gestion Stock', icon: Warehouse },
+    { path: '/stock-movements', label: 'Mouvements Stock', icon: TrendingUp },
+    { path: '/interventions', label: 'Interventions', icon: Wrench },
+    { path: '/installations', label: 'Installations', icon: Settings },
+    { path: '/clients', label: 'Clients', icon: User },
+    { path: '/quotes', label: 'Devis', icon: FileSearch },
+    { path: '/invoices', label: 'Factures', icon: FileText },
+    { path: '/proforma-invoices', label: 'Pro Forma', icon: FileCheck },
+    { path: '/expenses', label: 'Dépenses', icon: DollarSign },
+    { path: '/zone-de-travail', label: 'Zone de travail', icon: MapPin },
+    { path: '/pointage', label: 'Pointage', icon: Clock },
+    { path: '/users', label: 'Utilisateurs', icon: Users },
+  ];
+
+  // Menu pour Technicien (tableau de bord, interventions, pointage)
+  const technicienMenuItems = [
+    { path: '/', label: 'Tableau de Bord', icon: LayoutDashboard },
+    { path: '/interventions', label: 'Interventions', icon: Wrench },
+    { path: '/pointage', label: 'Pointage', icon: Clock },
+  ];
+
+  // Menu pour Commercial (tableau de bord, clients, interventions, pointage)
+  const commercialMenuItems = [
+    { path: '/', label: 'Tableau de Bord', icon: LayoutDashboard },
+    { path: '/clients', label: 'Clients', icon: User },
+    { path: '/interventions', label: 'Interventions', icon: Wrench },
+    { path: '/pointage', label: 'Pointage', icon: Clock },
+  ];
+
+  // Sélectionner le menu selon le rôle et les permissions personnalisées
+  const getMenuItems = () => {
+    // Récupérer les permissions personnalisées de l'utilisateur
+    const customPermissions = user?.profile?.page_permissions !== undefined 
+      ? user.profile.page_permissions 
+      : (user?.page_permissions !== undefined ? user.page_permissions : null);
+    
+    // Obtenir les permissions par défaut selon le rôle
+    let defaultPermissions = [];
+    let baseMenuItems = [];
+    
+    switch (role) {
+      case 'admin':
+        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/interventions',
+                             '/installations', '/clients', '/quotes', '/invoices',
+                             '/proforma-invoices', '/expenses', '/zone-de-travail', '/pointage', '/users'];
+        baseMenuItems = adminMenuItems;
+        break;
+      case 'technicien':
+        defaultPermissions = ['/', '/interventions', '/pointage'];
+        baseMenuItems = technicienMenuItems;
+        break;
+      case 'commercial':
+        defaultPermissions = ['/', '/clients', '/interventions', '/pointage'];
+        baseMenuItems = commercialMenuItems;
+        break;
+      default:
+        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/interventions', 
+                             '/installations', '/clients', '/quotes', '/invoices', 
+                             '/proforma-invoices', '/expenses', '/zone-de-travail', '/users'];
+        baseMenuItems = adminMenuItems;
+    }
+    
+    // Si customPermissions est un tableau avec des valeurs, combiner avec les permissions par défaut
+    // null/undefined = utiliser uniquement les permissions par défaut
+    // [] = utiliser uniquement les permissions par défaut (pas de permissions supplémentaires)
+    // [paths...] = permissions par défaut + permissions supplémentaires
+    if (Array.isArray(customPermissions) && customPermissions.length > 0) {
+      // Combiner : permissions par défaut + permissions personnalisées (sans doublons)
+      const allPermissions = [...new Set([...defaultPermissions, ...customPermissions])];
+      
+      // Récupérer tous les items de menu possibles
+      const allMenuItems = [
+        ...adminMenuItems,
+        ...technicienMenuItems,
+        ...commercialMenuItems
+      ];
+      
+      // Retirer les doublons et filtrer par permissions combinées
+      const uniqueItems = allMenuItems.filter((item, index, self) =>
+        index === self.findIndex(t => t.path === item.path)
+      );
+      
+      return uniqueItems.filter(item => allPermissions.includes(item.path));
+    }
+    
+    // Si customPermissions est null/undefined ou un tableau vide, utiliser uniquement les permissions par défaut
+    return baseMenuItems;
+  };
+
+  const menuItems = getMenuItems();
+
+  return (
+    <aside className={`relative z-20 h-screen transition-all duration-500 ease-in-out ${collapsed ? 'w-24' : 'w-96'} p-6`}>
+      <div className="h-full glass-card flex flex-col border-white/40 shadow-2xl">
+        {/* Logo Section */}
+        <div className="p-8 mb-6 flex items-center justify-between flex-shrink-0">
+          {!collapsed && (
+            <div className="flex items-center gap-3 animate-fade-in">
+              <div className="bg-primary-600 p-2 rounded-xl shadow-lg shadow-primary-500/30">
+                <Box className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400 tracking-tight">
+                Max-Immo
+              </h2>
+            </div>
+          )}
+          {collapsed && (
+            <div className="bg-primary-600 p-2 rounded-xl shadow-lg shadow-primary-500/30 mx-auto">
+              <Box className="w-6 h-6 text-white" />
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-4 space-y-3 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin' }}>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) =>
+                  `group flex items-center gap-4 p-4 sm:p-5 rounded-2xl transition-all duration-300 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent ${isActive
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40 translate-x-0.5'
+                    : 'text-slate-600 hover:bg-primary-50 hover:text-primary-600'
+                  }`
+                }
+              >
+                <Icon className="w-6 h-6 transition-transform duration-300 group-hover:scale-105 flex-shrink-0" />
+                {!collapsed && <span className="font-semibold tracking-wide truncate flex-1 min-w-0">{item.label}</span>}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* Collapse Button */}
+        <div className="p-6 border-t border-slate-100/50 flex-shrink-0">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-full flex items-center justify-center p-4 rounded-xl bg-slate-50 text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-all duration-300"
+          >
+            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;
+
