@@ -4,6 +4,15 @@ Ce guide décrit comment déployer **Gestion** (frontend React + backend Django)
 
 ---
 
+## Déploiement actuel (Render + Vercel)
+
+- **Backend Django** : https://gestionnetsysteme.onrender.com  
+- **Frontend React** : https://gestionnetsysteme.vercel.app  
+
+Le frontend utilise **`VITE_API_URL`** (voir `frontend/.env.production` et `frontend/src/config.js`). Sur Vercel : définir `VITE_API_URL` = `https://gestionnetsysteme.onrender.com`, Build = `npm install && npm run build`, Output = `dist`, Root = `frontend`.
+
+---
+
 ## 1. Résumé de l’architecture
 
 | Composant | Techno | En production |

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Edit, Trash2, Eye, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { formatCurrency } from '../utils/formatCurrency';
-
-const BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '../config';
 
 const ProductCard = ({ product, onEdit, onDelete, onView }) => {
   const [imageLoading, setImageLoading] = useState(true);
@@ -20,11 +19,11 @@ const ProductCard = ({ product, onEdit, onDelete, onView }) => {
 
     // Si c'est un chemin relatif
     if (product.photo.startsWith('/')) {
-      return `${BASE_URL}${product.photo}`;
+      return `${API_BASE_URL}${product.photo}`;
     }
 
     // Chemin media
-    return `${BASE_URL}/media/${product.photo}`;
+    return `${API_BASE_URL}/media/${product.photo}`;
   })();
 
   return (

@@ -20,6 +20,7 @@ import {
 import Loader from '../components/Loader';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatCurrency';
+import { API_BASE_URL } from '../config';
 
 const Stock = () => {
   const { products, stockMovements, loading } = useApp();
@@ -412,7 +413,7 @@ const Stock = () => {
                         const p = viewingProduct.photo_url || viewingProduct.photo;
                         if (!p) return '';
                         if (typeof p === 'string' && p.startsWith('http')) return p;
-                        return `http://localhost:8000${typeof p === 'string' && p.startsWith('/') ? p : `/media/${p}`}`;
+                        return `${API_BASE_URL}${typeof p === 'string' && p.startsWith('/') ? p : `/media/${p}`}`;
                       })()
                     }
                     alt={viewingProduct.name}

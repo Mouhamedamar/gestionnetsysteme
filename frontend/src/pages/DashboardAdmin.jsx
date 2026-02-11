@@ -18,6 +18,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import Loader from '../components/Loader';
 import StockAlertNotification from '../components/StockAlertNotification';
 import { formatCurrency } from '../utils/formatCurrency';
+import { API_BASE_URL } from '../config';
 
 const StatCard = ({ title, value, icon: Icon, color, subtitle, trend, trendValue }) => {
   const colorConfigs = {
@@ -340,8 +341,8 @@ const DashboardAdmin = () => {
                             product.photo.startsWith('http')
                               ? product.photo
                               : product.photo.startsWith('/media')
-                              ? `http://localhost:8000${product.photo}`
-                              : `http://localhost:8000/media/products/${product.photo}`
+                              ? `${API_BASE_URL}${product.photo}`
+                              : `${API_BASE_URL}/media/products/${product.photo}`
                           }
                           alt={product.name}
                           className="w-full h-full object-cover"

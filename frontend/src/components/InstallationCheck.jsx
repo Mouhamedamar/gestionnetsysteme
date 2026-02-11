@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const InstallationCheck = ({ children }) => {
   const navigate = useNavigate();
@@ -16,8 +17,7 @@ const InstallationCheck = ({ children }) => {
       }
 
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const response = await fetch(`${apiUrl}/api/auth/check-installation/`, {
+        const response = await fetch(`${API_BASE_URL}/api/auth/check-installation/`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'

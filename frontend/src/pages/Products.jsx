@@ -8,6 +8,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportProductsToCSV } from '../utils/exportData';
 import { formatCurrency } from '../utils/formatCurrency';
+import { API_BASE_URL } from '../config';
 
 const Products = () => {
   const { products, deleteProduct, loading, notification, showNotification } = useApp();
@@ -249,8 +250,8 @@ const Products = () => {
                       viewingProduct.photo.startsWith('http')
                         ? viewingProduct.photo
                         : viewingProduct.photo.startsWith('/media')
-                        ? `http://localhost:8000${viewingProduct.photo}`
-                        : `http://localhost:8000/media/products/${viewingProduct.photo}`
+                        ? `${API_BASE_URL}${viewingProduct.photo}`
+                        : `${API_BASE_URL}/media/products/${viewingProduct.photo}`
                     }
                     alt={viewingProduct.name}
                     className="w-full max-h-96 object-cover rounded-lg"

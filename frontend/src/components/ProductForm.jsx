@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { API_BASE_URL } from '../config';
 
 const ProductForm = ({ product, onClose, onSave }) => {
   const { addProduct, updateProduct } = useApp();
@@ -36,7 +37,7 @@ const ProductForm = ({ product, onClose, onSave }) => {
       if (product.photo) {
         const photoUrl = product.photo.startsWith('http') 
           ? product.photo 
-          : `http://localhost:8000${product.photo}`;
+          : `${API_BASE_URL}${product.photo}`;
         setPhotoPreview(photoUrl);
       }
     }

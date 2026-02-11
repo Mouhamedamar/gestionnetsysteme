@@ -8,6 +8,7 @@ import { exportExpensesToCSV } from '../utils/exportData';
 import { useDebounce } from '../hooks/useDebounce';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { API_BASE_URL } from '../config';
 
 const Expenses = () => {
   const { expenses, loading, fetchExpenses, showNotification, loggedIn, deleteExpense } = useApp();
@@ -432,7 +433,7 @@ const Expenses = () => {
                                 src={expense.justification_image_url || 
                                   (expense.justification_image?.startsWith('http') 
                                     ? expense.justification_image 
-                                    : `http://localhost:8000${expense.justification_image}`)}
+                                    : `${API_BASE_URL}${expense.justification_image}`)}
                                 alt="Justification"
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -618,7 +619,7 @@ const Expenses = () => {
                     src={selectedExpense.justification_image_url || 
                       (selectedExpense.justification_image?.startsWith('http') 
                         ? selectedExpense.justification_image 
-                        : `http://localhost:8000${selectedExpense.justification_image}`)}
+                        : `${API_BASE_URL}${selectedExpense.justification_image}`)}
                     alt="Justification de la dépense"
                     className="max-w-full h-auto rounded-lg border-2 border-slate-200 shadow-sm"
                     onError={(e) => {

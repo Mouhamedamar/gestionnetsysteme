@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { DollarSign, ArrowLeft, Save, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const CreateExpense = () => {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ const CreateExpense = () => {
           const imageUrl = expense.justification_image_url || 
             (expense.justification_image?.startsWith('http') 
               ? expense.justification_image 
-              : `http://localhost:8000${expense.justification_image}`);
+              : `${API_BASE_URL}${expense.justification_image}`);
           setImagePreview(imageUrl);
         }
       }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { API_BASE_URL } from '../config';
 import { Package, CheckCircle, XCircle, Loader, Settings, Database, User, Server } from 'lucide-react';
 
 const Installation = () => {
@@ -35,8 +36,7 @@ const Installation = () => {
 
     try {
       // Utiliser l'endpoint de vérification d'installation
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/auth/check-installation/`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/check-installation/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -110,8 +110,7 @@ const Installation = () => {
       setLoading(true);
 
       // Créer l'utilisateur admin via l'endpoint setup-admin
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${baseUrl}/api/auth/setup-admin/`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/setup-admin/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
