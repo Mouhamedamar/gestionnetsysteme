@@ -11,6 +11,13 @@ Ce guide décrit comment déployer **Gestion** (frontend React + backend Django)
 
 Le frontend utilise **`VITE_API_URL`** (voir `frontend/.env.production` et `frontend/src/config.js`). Sur Vercel : définir `VITE_API_URL` = `https://gestionnetsysteme.onrender.com`, Build = `npm install && npm run build`, Output = `dist`, Root = `frontend`.
 
+**Frontend sur Render** (alternative à Vercel) : dans le service Render (Static Site ou Web Service) :
+- **Build Command** : `npm install && npm run build`
+- **Start Command** : `npm run start` (obligatoire — le script `start` lance `vite preview`)
+- **Publish Directory** : `dist`
+- **Environment** : `VITE_API_URL` = `https://gestionnetsysteme.onrender.com`
+- Node 20 recommandé (`engines.node` dans `package.json`).
+
 ---
 
 ## 1. Résumé de l’architecture

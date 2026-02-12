@@ -171,6 +171,10 @@ SIMPLE_JWT = {
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+# Requis pour accepter les requêtes POST depuis le frontend (Vercel, etc.) — sinon 403 Forbidden
+_csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://gestionnetsysteme.vercel.app').strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
