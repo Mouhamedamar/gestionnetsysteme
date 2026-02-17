@@ -21,7 +21,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.filter(deleted_at__isnull=True)
     permission_classes = [IsAdminOrCommercial]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'is_cancelled']
+    filterset_fields = ['is_cancelled']
     search_fields = ['invoice_number', 'client_name']
     ordering_fields = ['date', 'total_ttc', 'created_at']
     ordering = ['-date', '-created_at']
@@ -73,6 +73,96 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         invoice.soft_delete()
         return Response({'status': 'Facture supprimée'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='record-payment')
+    def record_payment(self, request, pk=None):
+        """Enregistre un paiement (tranche) sur la facture. amount = montant à ajouter au total payé."""
+        invoice = self.get_object()
+        if invoice.is_cancelled:
+            return Response(
+                {'error': 'Impossible d\'enregistrer un paiement sur une facture annulée.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        amount = request.data.get('amount')
+        if amount is None:
+            return Response(
+                {'error': 'Le champ "amount" (montant payé) est requis.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            from decimal import Decimal
+            amount = Decimal(str(amount))
+            if amount < 0:
+                return Response(
+                    {'error': 'Le montant doit être positif.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'Montant invalide.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        invoice.amount_paid = (invoice.amount_paid or 0) + amount
+        if invoice.amount_paid > invoice.total_ttc:
+            invoice.amount_paid = invoice.total_ttc
+        invoice.save()
+        serializer = self.get_serializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def convert_to_invoice(self, request, pk=None):
+        """Convertit une facture pro forma en facture définitive (nouvelle facture + sortie stock)."""
+        from stock.models import StockMovement
+        from .serializers import InvoiceSerializer
+
+        proforma = self.get_object()
+        if not proforma.is_proforma:
+            return Response(
+                {'error': 'Seules les factures pro forma peuvent être converties en facture.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        items = proforma.invoice_items.filter(deleted_at__isnull=True)
+        if not items.exists():
+            return Response(
+                {'error': 'Cette facture pro forma ne contient aucun article. Ajoutez des lignes avant de convertir.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Vérifier le stock pour tous les articles
+        for item in items:
+            if item.product.quantity < item.quantity:
+                return Response(
+                    {
+                        'error': (
+                            f"Stock insuffisant pour le produit « {item.product.name} ». "
+                            f"Disponible : {item.product.quantity}, demandé : {item.quantity}"
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        client_name = proforma.client_name or (proforma.client.name if proforma.client else '')
+        new_invoice = Invoice.objects.create(
+            client=proforma.client,
+            client_name=client_name or 'Client',
+            company=proforma.company,
+            is_proforma=False,
+        )
+        for item in items:
+            InvoiceItem.objects.create(
+                invoice=new_invoice,
+                product=item.product,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+            )
+        new_invoice.calculate_totals()
+        for item in new_invoice.invoice_items.all():
+            StockMovement.objects.create(
+                product=item.product,
+                movement_type='SORTIE',
+                quantity=item.quantity,
+                comment=f"Sortie pour facture {new_invoice.invoice_number} (conversion pro forma)"
+            )
+        serializer = InvoiceSerializer(new_invoice)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get', 'post', 'delete'])
     def items(self, request, pk=None):

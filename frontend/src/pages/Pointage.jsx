@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Clock, LogIn, LogOut, MapPin, Building2, HardHat, Filter, Eye, X, Copy, FileSpreadsheet, FileText, FileDown, Printer, Search, CheckCircle } from 'lucide-react';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import ZoneMapPreview from '../components/ZoneMapPreview';
 import Modal from '../components/Modal';
 import { exportToCSV } from '../utils/exportData';
@@ -496,18 +497,18 @@ const Pointage = () => {
   const insideZone = predefinedZone && userPosition ? isInsideZone(userPosition.lat, userPosition.lng, predefinedZone) : false;
 
   return (
-    <div className="space-y-8">
-      <div className="page-header">
-        <h1 className="page-title">Pointage</h1>
-        <p className="page-subtitle">
-          {isAdmin ? 'Vue de tous les pointages' : 'Enregistrez vos entrées et sorties'}
-        </p>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader
+        title="Pointage"
+        subtitle={isAdmin ? 'Vue de tous les pointages' : 'Enregistrez vos entrées et sorties'}
+        badge="Horaires"
+        icon={Clock}
+      />
 
       {!isAdmin && (
         <>
           {/* Horaires et zone de pointage */}
-          <div className="rounded-xl bg-primary-50 border-2 border-primary-200 p-4 mb-6">
+          <div className="rounded-2xl bg-primary-50/80 border-2 border-primary-200 p-5 shadow-sm">
             <h3 className="text-sm font-bold text-primary-800 flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-primary-600" />
               Horaires de pointage
@@ -520,7 +521,7 @@ const Pointage = () => {
           {/* Pointage du jour + Votre position (layout type carte) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Gauche : Pointage du jour */}
-            <div className="card p-6 flex flex-col">
+            <div className="glass-card p-6 flex flex-col shadow-xl border-white/60">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
                 <Clock className="w-5 h-5 text-primary-600" />
                 Pointage du jour
@@ -633,7 +634,7 @@ const Pointage = () => {
             </div>
 
             {/* Droite : Votre position (carte) */}
-            <div className="card p-6 flex flex-col">
+            <div className="glass-card p-6 flex flex-col shadow-xl border-white/60">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-primary-600" />
@@ -721,7 +722,7 @@ const Pointage = () => {
 
       {/* Carte avec position pour l'admin */}
       {isAdmin && (
-        <div className="card p-6">
+        <div className="glass-card p-6 shadow-xl border-white/60">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-primary-600" />
@@ -792,14 +793,14 @@ const Pointage = () => {
         </div>
       )}
 
-      <div className="card p-6">
+      <div className="glass-card p-6 shadow-xl border-white/60">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
           <Clock className="w-5 h-5 text-primary-600" />
           {isAdmin ? 'Tous les pointages' : 'Historique des pointages'}
         </h2>
 
         {isAdmin && (
-          <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="mb-6 p-5 rounded-2xl glass-card border border-slate-200/80 bg-white/60">
             <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-3">
               <Filter className="w-4 h-4 text-primary-600" />
               Filtres
@@ -810,7 +811,7 @@ const Pointage = () => {
                 <select
                   value={filterUser}
                   onChange={(e) => setFilterUser(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                  className="input-field w-full"
                 >
                   <option value="">Tous</option>
                   {(users || []).map((u) => (
@@ -823,7 +824,7 @@ const Pointage = () => {
                 <select
                   value={filterZone}
                   onChange={(e) => setFilterZone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                  className="input-field w-full"
                 >
                   <option value="">Toutes</option>
                   {workZones.map((z) => (
@@ -836,7 +837,7 @@ const Pointage = () => {
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                  className="input-field w-full"
                 >
                   <option value="">Tous</option>
                   <option value="entree">Entrée</option>
@@ -849,7 +850,7 @@ const Pointage = () => {
                   type="date"
                   value={filterDateAfter}
                   onChange={(e) => setFilterDateAfter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                  className="input-field w-full"
                 />
               </div>
               <div className="min-w-[140px]">
@@ -858,7 +859,7 @@ const Pointage = () => {
                   type="date"
                   value={filterDateBefore}
                   onChange={(e) => setFilterDateBefore(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                  className="input-field w-full"
                 />
               </div>
               <button
@@ -870,7 +871,7 @@ const Pointage = () => {
                   setFilterDateAfter('');
                   setFilterDateBefore('');
                 }}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-600 hover:bg-slate-100 flex items-center gap-2"
+                className="btn-secondary inline-flex items-center gap-2"
               >
                 <X className="w-4 h-4" />
                 Réinitialiser
@@ -889,7 +890,7 @@ const Pointage = () => {
                 placeholder="Rechercher…"
                 value={searchPointage}
                 onChange={(e) => setSearchPointage(e.target.value)}
-                className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white"
+                className="input-field flex-1 min-w-0"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -976,43 +977,43 @@ const Pointage = () => {
         {loading ? (
           <Loader />
         ) : pointages.length === 0 ? (
-          <p className="text-slate-500 py-4">Aucun pointage enregistré.</p>
+          <p className="text-slate-500 py-8 text-center">Aucun pointage enregistré.</p>
         ) : (
-          <div ref={pointageTableRef} className="overflow-x-auto print:overflow-visible">
-            <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+          <div ref={pointageTableRef} className="overflow-x-auto print:overflow-visible rounded-2xl border border-slate-100">
+            <table className="table-modern w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-left">
-                  <th className="py-3 px-3">DATE</th>
-                  <th className="py-3 px-3">AGENT</th>
-                  <th className="py-3 px-3">TYPE</th>
-                  <th className="py-3 px-3">ENTRÉE</th>
-                  <th className="py-3 px-3">SORTIE</th>
-                  <th className="py-3 px-3">DURÉE</th>
-                  <th className="py-3 px-3">LIEU</th>
-                  <th className="py-3 px-3">STATUT</th>
-                  <th className="py-3 px-3 w-10 print:hidden" aria-label="Carte" />
+                <tr className="bg-primary-600/10">
+                  <th className="table-header">DATE</th>
+                  <th className="table-header">AGENT</th>
+                  <th className="table-header">TYPE</th>
+                  <th className="table-header">ENTRÉE</th>
+                  <th className="table-header">SORTIE</th>
+                  <th className="table-header">DURÉE</th>
+                  <th className="table-header">LIEU</th>
+                  <th className="table-header">STATUT</th>
+                  <th className="table-header w-10 print:hidden" aria-label="Carte" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {filteredDailyRows.map((row) => (
-                  <tr key={row.key} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-3 font-medium text-slate-800">{row.dateFormatted}</td>
-                    <td className="py-3 px-3 font-medium text-slate-800">{row.agent}</td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  <tr key={row.key} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-800">{row.dateFormatted}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">{row.agent}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                         {row.type}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-slate-700">{row.entree}</td>
-                    <td className="py-3 px-3 text-slate-700">{row.sortie}</td>
-                    <td className="py-3 px-3 text-slate-700 font-medium">{row.duree}</td>
-                    <td className="py-3 px-3 text-slate-600">{row.lieu}</td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
+                    <td className="px-4 py-3 text-slate-700">{row.entree}</td>
+                    <td className="px-4 py-3 text-slate-700">{row.sortie}</td>
+                    <td className="px-4 py-3 text-slate-700 font-medium">{row.duree}</td>
+                    <td className="px-4 py-3 text-slate-600">{row.lieu}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
                         {row.statut}
                       </span>
                     </td>
-                    <td className="py-3 px-3 print:hidden">
+                    <td className="px-4 py-3 print:hidden">
                       {(row.pointageEntree || row.pointageSortie) && (
                         <button
                           type="button"

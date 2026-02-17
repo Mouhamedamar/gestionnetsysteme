@@ -13,7 +13,7 @@ const Notification = ({ message, type = 'success', onClose }) => {
   const Icon = type === 'success' ? CheckCircle : AlertCircle;
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-fade-in">
+    <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
       <div className={`${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]`}>
         <Icon className="w-5 h-5" />
         <span className="flex-1">{typeof message === 'string' || typeof message === 'number' ? message : String(message ?? '')}</span>

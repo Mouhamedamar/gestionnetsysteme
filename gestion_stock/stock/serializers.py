@@ -1,6 +1,18 @@
 from rest_framework import serializers
-from .models import StockMovement
+from .models import StockMovement, StockNotificationRecipient, StockAlertSettings
 from products.serializers import ProductSerializer
+
+
+class StockNotificationRecipientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockNotificationRecipient
+        fields = ['id', 'name', 'phone', 'is_active', 'created_at']
+
+
+class StockAlertSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockAlertSettings
+        fields = ['id', 'alert_threshold', 'updated_at']
 
 
 class StockMovementSerializer(serializers.ModelSerializer):

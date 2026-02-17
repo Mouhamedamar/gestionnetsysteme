@@ -225,7 +225,7 @@ Sur le backend, mettre dans `CORS_ALLOWED_ORIGINS` l’URL exacte du frontend (e
 - [ ] Base de données : migrations appliquées, compte admin créé si besoin
 - [ ] Fichiers : `MEDIA_ROOT` sur un volume persistant (VPS) ou stockage objet (PaaS)
 - [ ] HTTPS activé (certificat SSL)
-- [ ] Emails / SMS (optionnel) : variables d’environnement SMTP et Twilio configurées
+- [ ] Emails / SMS (optionnel) : variables d’environnement SMTP et API Orange (ORANGE_SMS_*) configurées
 
 ---
 
@@ -242,7 +242,7 @@ Sur le backend, mettre dans `CORS_ALLOWED_ORIGINS` l’URL exacte du frontend (e
 | `DATABASE_URL` | Connexion PostgreSQL | `postgresql://user:pass@host:5432/db` |
 | `DEFAULT_FROM_EMAIL` | Email expéditeur | `noreply@monsite.com` |
 | `EMAIL_HOST`, etc. | SMTP | Pour envoi d’emails |
-| `TWILIO_*` | Twilio | Pour envoi SMS |
+| `ORANGE_SMS_CLIENT_ID`, `ORANGE_SMS_CLIENT_SECRET` | API Orange | Pour envoi SMS (Sénégal) |
 
 ### Frontend (build Vite)
 

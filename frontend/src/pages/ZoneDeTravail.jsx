@@ -3,6 +3,7 @@ import { MapPin, X, Eye, Building2, HardHat, Plus, Pencil, Trash2 } from 'lucide
 import ZoneMapPreview from '../components/ZoneMapPreview';
 import Loader from '../components/Loader';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 
 const emptyForm = {
@@ -168,13 +169,15 @@ const ZoneDeTravail = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="page-header">
-        <h1 className="page-title">Zone de travail</h1>
-        <p className="page-subtitle">Créer, modifier ou prévisualiser une zone (bureau ou chantier)</p>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader
+        title="Zone de travail"
+        subtitle="Créer, modifier ou prévisualiser une zone (bureau ou chantier)"
+        badge="Pointage"
+        icon={MapPin}
+      />
 
-      <div ref={formCardRef} className="card p-6 sm:p-8">
+      <div ref={formCardRef} className="glass-card p-6 sm:p-8 shadow-xl border-white/60">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             {editingId ? 'Modifier la zone' : 'Nouvelle zone'}
@@ -302,7 +305,7 @@ const ZoneDeTravail = () => {
       </div>
 
       {showPreview && (
-        <div className="card p-6 border-2 border-primary-500/30 bg-primary-50/30">
+        <div className="glass-card p-6 shadow-xl border-2 border-primary-500/30 bg-primary-50/30">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Eye className="w-5 h-5 text-primary-600" />
@@ -363,7 +366,7 @@ const ZoneDeTravail = () => {
         </div>
       )}
 
-      <div className="card p-6">
+      <div className="glass-card p-6 shadow-xl border-white/60">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
           <MapPin className="w-5 h-5 text-primary-600" />
           Zones existantes
@@ -372,32 +375,32 @@ const ZoneDeTravail = () => {
         {loading ? (
           <Loader />
         ) : zones.length === 0 ? (
-          <p className="text-slate-500 py-4">Aucune zone enregistrée. Créez une zone ci-dessus puis cliquez sur Enregistrer.</p>
+          <p className="text-slate-500 py-8 text-center">Aucune zone enregistrée. Créez une zone ci-dessus puis cliquez sur Enregistrer.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-100">
+            <table className="table-modern w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-600 font-semibold text-left">
-                  <th className="py-3 px-2">Nom</th>
-                  <th className="py-3 px-2">Type</th>
-                  <th className="py-3 px-2">Rayon</th>
-                  <th className="py-3 px-2">Adresse</th>
-                  <th className="py-3 px-2 text-right">Actions</th>
+                <tr className="bg-primary-600/10">
+                  <th className="table-header">Nom</th>
+                  <th className="table-header">Type</th>
+                  <th className="table-header">Rayon</th>
+                  <th className="table-header">Adresse</th>
+                  <th className="table-header text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {zones.map((z) => (
-                  <tr key={z.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-2 font-medium text-slate-800">{z.name}</td>
-                    <td className="py-3 px-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${z.zone_type === 'bureau' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <tr key={z.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-800">{z.name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${z.zone_type === 'bureau' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
                         {z.zone_type === 'bureau' ? <Building2 className="w-3.5 h-3.5" /> : <HardHat className="w-3.5 h-3.5" />}
                         {z.zone_type_display ?? (z.zone_type === 'bureau' ? 'Bureau' : 'Chantier')}
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-slate-600">{z.radius_m != null ? `${z.radius_m} m` : '—'}</td>
-                    <td className="py-3 px-2 text-slate-600 max-w-[200px] truncate" title={z.address || ''}>{z.address || '—'}</td>
-                    <td className="py-3 px-2 text-right">
+                    <td className="px-4 py-3 text-slate-600">{z.radius_m != null ? `${z.radius_m} m` : '—'}</td>
+                    <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={z.address || ''}>{z.address || '—'}</td>
+                    <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"

@@ -14,6 +14,7 @@ import {
   Package
 } from 'lucide-react';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import { useNavigate } from 'react-router-dom';
 
 const StatCard = ({ title, value, icon: Icon, color, subtitle }) => {
@@ -154,29 +155,12 @@ const DashboardTechnicien = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Welcome Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Wrench className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-            <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Tableau de bord</span>
-          </div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">
-            Bienvenue, {user?.username || 'Technicien'}
-          </h1>
-          <div className="flex items-center gap-4 text-slate-500">
-            <div className="flex items-center gap-2 bg-white/50 px-3 py-1 rounded-lg border border-slate-200/50">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm font-semibold">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-            </div>
-            <div className="h-4 w-px bg-slate-300"></div>
-            <p className="text-sm font-medium">Votre espace de gestion des interventions et installations.</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={`Bienvenue, ${user?.username || 'Technicien'}`}
+        subtitle={`${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} — Votre espace de gestion des interventions et installations`}
+        badge="Tableau de bord"
+        icon={Wrench}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

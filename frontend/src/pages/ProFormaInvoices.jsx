@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { FileText, Plus, Search, Eye, Printer, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
+import { FileText, Plus, Search, Eye, ChevronLeft, ChevronRight, FileDown, ArrowRightCircle, Filter } from 'lucide-react';
 import ProFormaInvoicePDF from '../components/ProFormaInvoicePDF';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportInvoicesToCSV } from '../utils/exportData';
 
 const ProFormaInvoices = () => {
-  const { invoices, loading, fetchInvoices, showNotification, loggedIn } = useApp();
+  const navigate = useNavigate();
+  const { invoices, loading, fetchInvoices, showNotification, loggedIn, apiCall } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showInvoicePDF, setShowInvoicePDF] = useState(false);
+  const [convertingId, setConvertingId] = useState(null);
 
   useEffect(() => {
     const loadInvoices = async () => {
@@ -36,12 +40,12 @@ const ProFormaInvoices = () => {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const filteredInvoices = proFormaInvoices.filter(invoice => {
-    const searchLower = debouncedSearchTerm.toLowerCase();
-    return (
-      invoice.invoice_number?.toString().toLowerCase().includes(searchLower) ||
-      invoice.client_name?.toLowerCase().includes(searchLower) ||
-      invoice.status?.toLowerCase().includes(searchLower)
-    );
+    const searchLower = (debouncedSearchTerm || '').toLowerCase();
+    if (searchLower && !invoice.invoice_number?.toString().toLowerCase().includes(searchLower) && !invoice.client_name?.toLowerCase().includes(searchLower)) {
+      return false;
+    }
+    if (filterCompany && (invoice.company || 'NETSYSTEME') !== filterCompany) return false;
+    return true;
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -65,19 +69,6 @@ const ProFormaInvoices = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toUpperCase()) {
-      case 'PAYE':
-        return 'bg-green-500/20 text-green-400';
-      case 'NON_PAYE':
-        return 'bg-yellow-500/20 text-yellow-400';
-      case 'ANNULE':
-        return 'bg-red-500/20 text-red-400';
-      default:
-        return 'bg-slate-500/20 text-slate-400';
-    }
-  };
-
   const handleExportCSV = () => {
     if (proFormaInvoices.length === 0) {
       showNotification('Aucune facture pro forma à exporter', 'warning');
@@ -85,6 +76,29 @@ const ProFormaInvoices = () => {
     }
     exportInvoicesToCSV(proFormaInvoices, 'factures_proforma.csv');
     showNotification('Export CSV réussi', 'success');
+  };
+
+  const handleConvertToInvoice = async (invoice) => {
+    if (convertingId) return;
+    setConvertingId(invoice.id);
+    try {
+      const response = await apiCall(`/api/invoices/${invoice.id}/convert_to_invoice/`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || `Erreur ${response.status}`);
+      }
+      const newInvoice = await response.json();
+      await fetchInvoices();
+      showNotification(
+        `Facture ${newInvoice.invoice_number || 'N/A'} créée à partir du pro forma`,
+        'success'
+      );
+      navigate('/invoices');
+    } catch (err) {
+      showNotification(err.message || 'Erreur lors de la conversion en facture', 'error');
+    } finally {
+      setConvertingId(null);
+    }
   };
 
   if (loading) return (
@@ -99,65 +113,46 @@ const ProFormaInvoices = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <FileText className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <h1 className="text-4xl font-black text-primary-600 mb-2">Factures Pro Forma</h1>
-          <p className="text-slate-800 text-lg mb-6 font-semibold">Gestion complète de vos factures pro forma</p>
+      <PageHeader title="Factures Pro Forma" subtitle="Gestion complète de vos factures pro forma" badge="Ventes" icon={FileText}>
+        <button onClick={handleExportCSV} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all" title="Exporter CSV">
+          <FileDown className="w-5 h-5" />
+          Exporter CSV
+        </button>
+        <Link to="/proforma-invoices/new" className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-5 h-5" />
+          Nouvelle Pro Forma
+        </Link>
+      </PageHeader>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="relative flex-grow md:flex-grow-0">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Rechercher une facture pro forma..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full md:w-80 pl-12 pr-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium placeholder-slate-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                onClick={handleExportCSV}
-                className="btn-secondary py-3 px-6 font-bold shadow-lg shadow-slate-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-                title="Exporter en CSV"
-              >
-                <FileDown className="w-5 h-5" />
-                Exporter CSV
-              </button>
-              <Link
-                to="/invoices/new?proforma=true"
-                className="btn-primary py-3 px-6 font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Nouvelle Facture Pro Forma
-              </Link>
-            </div>
+      {/* Filtres */}
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Rechercher une facture pro forma..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              className="input-field pl-12"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-5 h-5 text-slate-500 shrink-0" />
+            <select value={filterCompany} onChange={(e) => { setFilterCompany(e.target.value); setCurrentPage(1); }} className="input-field py-2.5 w-auto min-w-[140px]">
+              <option value="">Toutes les sociétés</option>
+              <option value="NETSYSTEME">NETSYSTEME</option>
+              <option value="SSE">SSE</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-6 border-white/40 text-center">
           <p className="text-slate-800 text-sm mb-2 font-bold">Total Pro Forma</p>
           <p className="text-4xl font-black text-primary-600">{proFormaInvoices.length}</p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">En attente</p>
-          <p className="text-4xl font-black text-yellow-600">
-            {proFormaInvoices.filter(inv => inv.status?.toUpperCase() === 'NON_PAYE').length}
-          </p>
         </div>
 
         <div className="glass-card p-6 border-white/40 text-center">
@@ -184,9 +179,9 @@ const ProFormaInvoices = () => {
               <tr>
                 <th className="table-header"># Facture</th>
                 <th className="table-header">Client</th>
+                <th className="table-header text-center">Société</th>
                 <th className="table-header text-center">Date</th>
                 <th className="table-header text-right">Montant</th>
-                <th className="table-header text-center">Statut</th>
                 <th className="table-header text-center">Actions</th>
               </tr>
             </thead>
@@ -200,6 +195,9 @@ const ProFormaInvoices = () => {
                     <td className="table-cell text-slate-700 font-medium">
                       {invoice.client_name || 'Client non spécifié'}
                     </td>
+                    <td className="table-cell text-center text-slate-700 font-medium">
+                      {invoice.company || 'NETSYSTEME'}
+                    </td>
                     <td className="table-cell text-center text-slate-700">
                       {formatDate(invoice.date)}
                     </td>
@@ -212,12 +210,19 @@ const ProFormaInvoices = () => {
                       })()} Fcfa
                     </td>
                     <td className="table-cell text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(invoice.status)}`}>
-                        {invoice.status || 'Inconnu'}
-                      </span>
-                    </td>
-                    <td className="table-cell text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleConvertToInvoice(invoice)}
+                          disabled={convertingId !== null}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Convertir en facture"
+                        >
+                          {convertingId === invoice.id ? (
+                            <span className="text-sm font-medium">...</span>
+                          ) : (
+                            <ArrowRightCircle className="w-5 h-5" />
+                          )}
+                        </button>
                         <Link
                           to={`/invoices/${invoice.id}/items`}
                           className="p-2 text-primary-600 hover:bg-primary-100 rounded-lg transition-all"

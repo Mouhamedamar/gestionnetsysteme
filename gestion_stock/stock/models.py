@@ -1,7 +1,45 @@
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.utils import timezone
 from products.models import Product
+
+
+class StockNotificationRecipient(models.Model):
+    """
+    Responsables qui reçoivent les alertes SMS lors des mouvements de stock.
+    """
+    name = models.CharField(max_length=120, verbose_name="Nom du responsable")
+    phone = models.CharField(max_length=20, verbose_name="Numéro de téléphone")
+    is_active = models.BooleanField(default=True, verbose_name="Actif")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Responsable SMS Stock"
+        verbose_name_plural = "Responsables SMS Stock"
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} - {self.phone}"
+
+
+class StockAlertSettings(models.Model):
+    """
+    Paramètres d'alerte stock (seuil minimal, etc.).
+    """
+    alert_threshold = models.IntegerField(default=10, verbose_name="Seuil d'alerte (unités)")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Paramètres alerte stock"
+        verbose_name_plural = "Paramètres alerte stock"
+
+    @classmethod
+    def get_settings(cls):
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create(alert_threshold=10)
+        return obj
 
 
 class StockMovement(models.Model):

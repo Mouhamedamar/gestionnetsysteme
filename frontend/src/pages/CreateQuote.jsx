@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import SearchableSelect from '../components/SearchableSelect';
@@ -19,8 +20,7 @@ const CreateQuote = () => {
     client_phone: '',
     client_address: '',
     expiration_date: '',
-    status: 'BROUILLON',
-    notes: '',
+    company: 'NETSYSTEME',
     items: []
   });
 
@@ -152,8 +152,7 @@ const CreateQuote = () => {
         client_phone: quoteData.client_phone || '',
         client_address: quoteData.client_address || '',
         expiration_date: expirationDate,
-        status: quoteData.status,
-        notes: quoteData.notes || '',
+        company: quoteData.company || 'NETSYSTEME',
         items: quoteData.items.map(item => ({
           product: item.product,
           quantity: item.quantity,
@@ -183,31 +182,20 @@ const CreateQuote = () => {
   return (
     <>
       <div className="space-y-8 animate-fade-in pb-12">
-        {/* Header */}
-        <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <FileText className="w-32 h-32 text-primary-600" />
-          </div>
-          <div className="relative z-10">
-            <button
-              onClick={() => navigate('/quotes')}
-              className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors mb-6"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour aux devis
-            </button>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black text-primary-600 mb-2">
-                  Nouveau Devis
-                </h1>
-                <p className="text-slate-700 text-lg font-semibold">Créer un nouveau devis client</p>
-                <p className="text-slate-500 text-sm mt-1">Remplissez les informations ci-dessous pour créer un nouveau devis</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Nouveau Devis"
+          subtitle="Créer un nouveau devis client — Remplissez les informations ci-dessous"
+          badge="Ventes"
+          icon={FileText}
+        >
+          <button
+            onClick={() => navigate('/quotes')}
+            className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Retour aux devis
+          </button>
+        </PageHeader>
 
         {/* Quote Form */}
         <div className="glass-card p-6 border-white/40">
@@ -249,29 +237,17 @@ const CreateQuote = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Statut</label>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Société</label>
               <select
-                value={quoteData.status}
-                onChange={(e) => setQuoteData({...quoteData, status: e.target.value})}
+                value={quoteData.company}
+                onChange={(e) => setQuoteData({...quoteData, company: e.target.value})}
                 className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
               >
-                <option value="BROUILLON">Brouillon</option>
-                <option value="ENVOYE">Envoyé</option>
-                <option value="ACCEPTE">Accepté</option>
-                <option value="REFUSE">Refusé</option>
+                <option value="NETSYSTEME">NETSYSTEME</option>
+                <option value="SSE">SSE</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Notes</label>
-              <textarea
-                value={quoteData.notes}
-                onChange={(e) => setQuoteData({...quoteData, notes: e.target.value})}
-                rows="3"
-                className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
-                placeholder="Notes additionnelles..."
-              />
-            </div>
           </div>
 
           {/* Client details (si client sélectionné) */}
@@ -531,8 +507,6 @@ const CreateQuote = () => {
             setCreatedQuote(null);
             navigate('/quotes');
           }}
-          autoDownload
-          silent
         />
       )}
     </>

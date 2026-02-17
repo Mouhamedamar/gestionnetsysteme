@@ -1,11 +1,12 @@
 """
 Notifications envoyées au technicien lors de l'assignation à une intervention :
 - email
-- SMS (Twilio si configuré, sinon log en dev)
+- SMS (API Orange si configurée)
 """
 import logging
 from django.conf import settings
 from django.core.mail import send_mail
+from gestion_stock.sms_backend import send_sms, normalize_phone
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,7 @@ def send_assignment_email(intervention, technician):
 def send_assignment_sms(intervention, technician):
     """
     Envoie un SMS au technicien pour l'informer de son assignation.
-    Utilise Twilio si TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et TWILIO_FROM_NUMBER sont définis.
-    Sinon, log le message (utile en dev).
+    Utilise l'API Orange si ORANGE_SMS_CLIENT_ID et ORANGE_SMS_CLIENT_SECRET sont définis.
     Ne lève pas d'exception : les erreurs sont loguées.
     """
     phone = None
@@ -97,38 +97,21 @@ def send_assignment_sms(intervention, technician):
         logger.warning("Notification SMS assignation: technicien sans numéro (id=%s)", getattr(technician, 'id', None))
         return False
 
-    # Normaliser le numéro pour Twilio (E.164). Ex: 0612345678 -> +33612345678
-    phone = str(phone).strip().replace(' ', '')
-    if not phone.startswith('+'):
-        if phone.startswith('0') and len(phone) == 10:
-            phone = '+33' + phone[1:]
-        elif len(phone) == 9 and phone[0] in ('6', '7'):
-            phone = '+33' + phone
-        else:
-            phone = '+' + phone
+    phone = normalize_phone(phone)
+    if not phone:
+        logger.warning("Notification SMS assignation: numéro invalide (technicien id=%s)", getattr(technician, 'id', None))
+        return False
 
     message_body = _build_sms_text(intervention)
-
-    sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '') or ''
-    token = getattr(settings, 'TWILIO_AUTH_TOKEN', '') or ''
-    from_number = getattr(settings, 'TWILIO_FROM_NUMBER', '') or ''
-
-    if sid and token and from_number:
-        try:
-            from twilio.rest import Client
-            client = Client(sid, token)
-            client.messages.create(body=message_body, from_=from_number, to=phone)
-            logger.info("SMS assignation envoyé à %s pour intervention %s", phone, intervention.intervention_number)
-            return True
-        except Exception as e:
-            logger.exception("Erreur envoi SMS assignation à %s: %s", phone, e)
-            return False
+    ok = send_sms(phone, message_body)
+    if ok:
+        logger.info("SMS assignation envoyé à %s pour intervention %s", phone, intervention.intervention_number)
     else:
         logger.info(
-            "SMS assignation (Twilio non configuré) – destinataire: %s, message: %s",
+            "SMS assignation (API Orange non configurée) – destinataire: %s, message: %s",
             phone, message_body[:80] + "..." if len(message_body) > 80 else message_body
         )
-        return False
+    return ok
 
 
 def notify_technician_assignment(intervention, technician):

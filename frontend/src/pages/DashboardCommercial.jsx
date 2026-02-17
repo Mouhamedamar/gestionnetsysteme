@@ -5,13 +5,13 @@ import {
   FileText,
   DollarSign,
   TrendingUp,
-  Calendar,
   CheckCircle2,
   Clock,
   AlertCircle,
   Package
 } from 'lucide-react';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatCurrency';
 
@@ -58,19 +58,12 @@ const DashboardCommercial = () => {
     const totalQuotes = quotes?.length || 0;
     const totalInvoices = invoices?.length || 0;
     
-    // Devis en attente
-    const quotesPending = quotes?.filter(q => q.status === 'EN_ATTENTE' || q.status === 'BROUILLON').length || 0;
-    
-    // Factures payées
-    const invoicesPaid = invoices?.filter(i => i.status === 'PAYE').length || 0;
-    
-    // Chiffre d'affaires (factures payées)
+    // Chiffre d'affaires (toutes les factures)
     const revenue = invoices
-      ?.filter(i => i.status === 'PAYE')
-      .reduce((sum, inv) => sum + (parseFloat(inv.total_ttc) || 0), 0) || 0;
+      ?.reduce((sum, inv) => sum + (parseFloat(inv.total_ttc) || 0), 0) || 0;
     
-    // Devis convertis (devis qui ont une facture associée)
-    const quotesConverted = quotes?.filter(q => q.status === 'ACCEPTE').length || 0;
+    // Devis convertis (devis déjà convertis en facture)
+    const quotesConverted = quotes?.filter(q => q.converted_invoice).length || 0;
     
     // Taux de conversion
     const conversionRate = totalQuotes > 0 ? ((quotesConverted / totalQuotes) * 100).toFixed(1) : 0;
@@ -79,8 +72,6 @@ const DashboardCommercial = () => {
       totalClients,
       totalQuotes,
       totalInvoices,
-      quotesPending,
-      invoicesPaid,
       revenue,
       quotesConverted,
       conversionRate
@@ -112,29 +103,12 @@ const DashboardCommercial = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Welcome Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Users className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-            <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Tableau de bord</span>
-          </div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">
-            Bienvenue, {user?.username || 'Commercial'}
-          </h1>
-          <div className="flex items-center gap-4 text-slate-500">
-            <div className="flex items-center gap-2 bg-white/50 px-3 py-1 rounded-lg border border-slate-200/50">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm font-semibold">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-            </div>
-            <div className="h-4 w-px bg-slate-300"></div>
-            <p className="text-sm font-medium">Votre espace de gestion commerciale.</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={`Bienvenue, ${user?.username || 'Commercial'}`}
+        subtitle={`${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} — Votre espace de gestion commerciale`}
+        badge="Tableau de bord"
+        icon={Users}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -150,14 +124,14 @@ const DashboardCommercial = () => {
           value={stats.totalQuotes}
           icon={FileText}
           color="purple"
-          subtitle={`${stats.quotesPending} en attente`}
+          subtitle={`${stats.totalQuotes} devis`}
         />
         <StatCard
           title="Factures"
           value={stats.totalInvoices}
           icon={DollarSign}
           color="green"
-          subtitle={`${stats.invoicesPaid} payées`}
+          subtitle={`${stats.totalInvoices} factures`}
         />
         <StatCard
           title="Chiffre d'Affaires"
@@ -190,7 +164,6 @@ const DashboardCommercial = () => {
                 <th className="table-header">Client</th>
                 <th className="table-header">Date</th>
                 <th className="table-header">Total</th>
-                <th className="table-header">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -213,21 +186,11 @@ const DashboardCommercial = () => {
                     <td className="table-cell font-black text-slate-800">
                       {formatCurrency(quote.total_ttc || quote.total || 0)} F CFA
                     </td>
-                    <td className="table-cell">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${
-                        quote.status === 'ACCEPTE' ? 'bg-green-100 text-green-700' :
-                        quote.status === 'REFUSE' ? 'bg-red-100 text-red-700' :
-                        quote.status === 'EN_ATTENTE' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {quote.status || 'BROUILLON'}
-                      </span>
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="table-cell text-center text-slate-500 py-8">
+                  <td colSpan="4" className="table-cell text-center text-slate-500 py-8">
                     Aucun devis récent
                   </td>
                 </tr>
@@ -259,7 +222,6 @@ const DashboardCommercial = () => {
                 <th className="table-header">Client</th>
                 <th className="table-header">Date</th>
                 <th className="table-header">Total TTC</th>
-                <th className="table-header">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -282,19 +244,11 @@ const DashboardCommercial = () => {
                     <td className="table-cell font-black text-slate-800">
                       {formatCurrency(invoice.total_ttc || invoice.total || 0)} F CFA
                     </td>
-                    <td className="table-cell">
-                      <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase ${
-                        invoice.status === 'PAYE' ? 'bg-emerald-100 text-emerald-700' :
-                        'bg-amber-100 text-amber-700'
-                      }`}>
-                        {invoice.status === 'PAYE' ? '✓ Payé' : '⏳ En attente'}
-                      </span>
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="table-cell text-center text-slate-500 py-8">
+                  <td colSpan="4" className="table-cell text-center text-slate-500 py-8">
                     Aucune facture récente
                   </td>
                 </tr>

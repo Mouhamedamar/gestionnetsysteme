@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
-  Package, 
   User, 
   Lock, 
   LogIn, 
@@ -51,16 +50,17 @@ const Login = () => {
       </div>
 
       {/* Main login card */}
-      <div className="relative z-10 w-full max-w-md animate-fade-in">
+      <div className="relative z-10 w-full max-w-md animate-scale-in">
         <div className="glass-card border-white/40 shadow-2xl p-8 md:p-10">
           {/* Logo and header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-600 to-indigo-600 rounded-2xl mb-6 shadow-lg shadow-primary-500/30 animate-float">
-              <Package className="w-10 h-10 text-white" />
+            <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-white/60 backdrop-blur-sm mb-4 ring-2 ring-primary-200/50">
+              <img
+                src="/logo-netsysteme.png"
+                alt="NETSYSTEME"
+                className="logo-app logo-app-animate mx-auto h-28 w-auto max-w-[260px] object-contain transition-transform duration-300 hover:scale-105"
+              />
             </div>
-            <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600">
-              Max-Immo
-            </h1>
             <p className="text-slate-500 font-medium mt-2">Gestion de Stock & Interventions</p>
             <div className="flex items-center justify-center gap-2 mt-3">
               <div className="h-px w-12 bg-gradient-to-r from-transparent to-primary-300"></div>

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';
-import { Search, Plus, Edit, Trash2, User, Shield, UserCheck, UserX } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
+import { Search, Plus, Edit, Trash2, Users as UsersIcon, User, Shield, UserCheck, UserX } from 'lucide-react';
 
 const Users = () => {
   const { 
+    users: contextUsers = [],
     fetchUsers, 
     addUser, 
     updateUserById, 
@@ -14,42 +16,32 @@ const Users = () => {
     showNotification 
   } = useApp();
   
-  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Charger les utilisateurs au montage
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  // Une seule source de vérité : la liste vient du contexte (mise à jour auto après add/update/delete)
+  const users = Array.isArray(contextUsers) ? contextUsers : [];
 
-  const loadUsers = async () => {
-    try {
-      const data = await fetchUsers();
-      setUsers(data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des utilisateurs:', error);
-    }
-  };
+  // Charger / rafraîchir la liste au montage de la page
+  useEffect(() => {
+    fetchUsers().catch(err => {
+      console.error('Erreur lors du chargement des utilisateurs:', err);
+    });
+  }, [fetchUsers]);
 
   const handleSaveUser = async (id, userData, options = {}) => {
     try {
       if (id) {
-        // Modification
         const updatedUser = await updateUserById(id, userData);
-        setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
-        // Mise à jour de l'utilisateur en cours d'édition pour refléter les changements
+        // Mise à jour de l'utilisateur en cours d'édition (formulaire reste ouvert en autoSave)
         if (options.autoSave && editingUser?.id === id) {
           setEditingUser(updatedUser);
         }
       } else {
-        // Création
-        const newUser = await addUser(userData);
-        setUsers(prev => [newUser, ...prev]);
+        await addUser(userData);
       }
-      // Ne pas fermer le formulaire en cas d'enregistrement automatique (permissions)
       if (!options.autoSave) {
         setShowForm(false);
         setEditingUser(null);
@@ -62,7 +54,6 @@ const Users = () => {
   const handleDeleteUser = async (id) => {
     try {
       await deleteUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
       setConfirmDelete(null);
     } catch (error) {
       console.error('Erreur lors de la suppression de l\'utilisateur:', error);
@@ -84,75 +75,60 @@ const Users = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Gestion des Utilisateurs</h1>
-        <p className="text-gray-600 mt-1">Gérez les utilisateurs et leurs permissions</p>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader title="Gestion des Utilisateurs" subtitle="Gérez les utilisateurs et leurs permissions" badge="Administration" icon={UsersIcon}>
+        <button
+          onClick={() => { setEditingUser(null); setShowForm(true); }}
+          className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+        >
+          <Plus className="w-5 h-5" />
+          Nouvel utilisateur
+        </button>
+      </PageHeader>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Rechercher un utilisateur..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <button
-              onClick={() => {
-                setEditingUser(null);
-                setShowForm(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Nouvel utilisateur
-            </button>
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Rechercher un utilisateur..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field pl-12"
+            />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+          <table className="table-modern w-full">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   Utilisateur
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rôle
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date de création
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Rôle</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Statut</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date de création</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100">
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <User className="h-5 w-5 text-blue-600" />
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                          <User className="h-5 w-5 text-primary-600" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.username}</div>
+                          <div className="text-sm font-semibold text-slate-800">{user.username}</div>
                           {user.is_staff && (
-                            <div className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                            <div className="text-xs text-primary-600 flex items-center gap-1 mt-1">
                               <Shield className="w-3 h-3" />
                               Administrateur
                             </div>
@@ -160,9 +136,7 @@ const Users = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{user.email || 'N/A'}</div>
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{user.email || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${
                         user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
@@ -187,7 +161,7 @@ const Users = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                       {formatDate(user.date_joined)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -197,14 +171,14 @@ const Users = () => {
                             setEditingUser(user);
                             setShowForm(true);
                           }}
-                          className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="text-primary-600 hover:text-primary-700 p-2 hover:bg-primary-50 rounded-xl transition-colors"
                           title="Modifier"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setConfirmDelete(user)}
-                          className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          className="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-xl transition-colors"
                           title="Supprimer"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -217,16 +191,16 @@ const Users = () => {
                 <tr>
                   <td colSpan="6" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
-                      <User className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun utilisateur</h3>
-                      <p className="mt-1 text-sm text-gray-500">
+                      <User className="mx-auto h-12 w-12 text-slate-400" />
+                      <h3 className="mt-2 text-sm font-semibold text-slate-800">Aucun utilisateur</h3>
+                      <p className="mt-1 text-sm text-slate-500">
                         {searchTerm ? 'Aucun utilisateur trouvé pour votre recherche.' : 'Commencez par créer un nouvel utilisateur.'}
                       </p>
                       {!searchTerm && (
                         <div className="mt-6">
                           <button
                             onClick={() => setShowForm(true)}
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            className="btn-primary"
                           >
                             <Plus className="w-4 h-4 mr-2" />
                             Nouvel utilisateur
@@ -271,23 +245,20 @@ const Users = () => {
           size="sm"
         >
           <div className="space-y-4">
-            <p className="text-gray-700">
+            <p className="text-slate-700">
               Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{confirmDelete.username}</strong> ?
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-500">
               Cette action est irréversible.
             </p>
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
+            <div className="flex justify-end gap-3 pt-4">
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary">
                 Annuler
               </button>
               <button
                 onClick={() => handleDeleteUser(confirmDelete.id)}
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                className="btn-danger disabled:opacity-50"
               >
                 {loading ? 'Suppression...' : 'Supprimer'}
               </button>

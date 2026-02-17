@@ -1,8 +1,15 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mockProducts, mockStockMovements, mockDashboardStats } from '../data/mockData';
 
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, USE_API } from '../config';
 const BASE_URL = API_BASE_URL;
+
+function isConnectionError(err) {
+  return (
+    err?.message === 'Failed to fetch' ||
+    (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('fetch'))
+  );
+}
 
 const AppContext = createContext();
 
@@ -34,6 +41,7 @@ export const AppProvider = ({ children }) => {
   const [dashboardStats, setDashboardStats] = useState(mockDashboardStats);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  const backendUnreachableNotifiedRef = useRef(false);
 
   // Simuler le chargement
   const simulateLoading = (callback, delay = 500) => {
@@ -56,6 +64,12 @@ export const AppProvider = ({ children }) => {
 
   // Authentification avec le backend
   const login = async (username, password) => {
+    // Mode démo / sans API : on simule une connexion locale
+    if (!USE_API) {
+      setLoggedIn(true);
+      showNotification('Connexion en mode démo (API désactivée)');
+      return true;
+    }
     try {
       const response = await fetch(`${BASE_URL}/api/auth/login/`, {
         method: 'POST',
@@ -149,6 +163,10 @@ export const AppProvider = ({ children }) => {
   // Helper pour les appels API avec authentification
   const apiCall = useCallback(
     async (url, options = {}) => {
+      if (!USE_API) {
+        console.warn('[apiCall] API désactivée dans ce déploiement, appel ignoré :', url);
+        throw new Error('API désactivée dans ce déploiement');
+      }
       const token = accessToken || localStorage.getItem('accessToken');
       const isFormData = options.body instanceof FormData;
       const headers = {
@@ -171,13 +189,15 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      console.log('[apiCall]', {
-        url,
-        method: options.method || 'GET',
-        isFormData,
-        hasContentType: !!headers['Content-Type'],
-        headers: { ...headers, Authorization: headers['Authorization'] ? '***' : 'none' }
-      });
+      if (!backendUnreachableNotifiedRef.current) {
+        console.log('[apiCall]', {
+          url,
+          method: options.method || 'GET',
+          isFormData,
+          hasContentType: !!headers['Content-Type'],
+          headers: { ...headers, Authorization: headers['Authorization'] ? '***' : 'none' }
+        });
+      }
 
       try {
         const response = await fetch(`${BASE_URL}${url}`, {
@@ -197,10 +217,16 @@ export const AppProvider = ({ children }) => {
               });
 
               if (refreshResponse.ok) {
-                const { access } = await refreshResponse.json();
-                setAccessToken(access);
-                localStorage.setItem('accessToken', access);
-                headers['Authorization'] = `Bearer ${access}`;
+                const data = await refreshResponse.json();
+                const newAccess = data.access;
+                const newRefresh = data.refresh; // Nouveau refresh si ROTATE_REFRESH_TOKENS
+                setAccessToken(newAccess);
+                localStorage.setItem('accessToken', newAccess);
+                if (newRefresh) {
+                  setRefreshToken(newRefresh);
+                  localStorage.setItem('refreshToken', newRefresh);
+                }
+                headers['Authorization'] = `Bearer ${newAccess}`;
 
                 // Réessayer la requête originale
                 return await fetch(`${BASE_URL}${url}`, {
@@ -216,14 +242,44 @@ export const AppProvider = ({ children }) => {
               localStorage.removeItem('accessToken');
               localStorage.removeItem('refreshToken');
               localStorage.removeItem('user');
+              setNotification({ message: 'Session expirée. Veuillez vous reconnecter.', type: 'error' });
+              window.location.href = '/login';
               throw new Error('Session expirée. Veuillez vous reconnecter.');
             }
+          } else {
+            // Pas de refresh token -> rediriger vers login
+            setAccessToken(null);
+            setRefreshToken(null);
+            setLoggedIn(false);
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            setNotification({ message: 'Session expirée. Veuillez vous reconnecter.', type: 'error' });
+            window.location.href = '/login';
           }
         }
 
         return response;
       } catch (error) {
-        console.error('[apiCall] Fetch error:', error);
+        const isConnectionRefused =
+          error?.message === 'Failed to fetch' ||
+          (error?.name === 'TypeError' && String(error?.message || '').toLowerCase().includes('fetch'));
+        if (isConnectionRefused && !backendUnreachableNotifiedRef.current) {
+          backendUnreachableNotifiedRef.current = true;
+          console.warn(
+            '[apiCall] Backend injoignable (' +
+              BASE_URL +
+              '). Démarrez le serveur Django (python manage.py runserver) pour utiliser l\'API.'
+          );
+          setNotification({
+            message:
+              'Backend indisponible. Démarrez le serveur Django (port 8000) pour les données réelles.',
+            type: 'error'
+          });
+          setTimeout(() => setNotification(null), 8000);
+        } else if (!isConnectionRefused) {
+          console.error('[apiCall] Fetch error:', error);
+        }
         throw error;
       }
     },
@@ -256,6 +312,7 @@ export const AppProvider = ({ children }) => {
 
   // Charger les produits depuis l'API
   const fetchProducts = useCallback(async () => {
+    if (!USE_API) return;
     if (!loggedIn) return;
     
     try {
@@ -332,7 +389,7 @@ export const AppProvider = ({ children }) => {
         );
       }
     } catch (error) {
-      console.error('Erreur fetchProducts:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchProducts:', error);
       if (error.message === 'Session expirée') {
         // Déconnexion manuelle
         setAccessToken(null);
@@ -351,6 +408,7 @@ export const AppProvider = ({ children }) => {
 
   // Charger les mouvements de stock depuis l'API
   const fetchStockMovements = useCallback(async () => {
+    if (!USE_API) return;
     if (!loggedIn) return;
 
     try {
@@ -413,7 +471,7 @@ export const AppProvider = ({ children }) => {
       const mappedMovements = data.results ? data.results : data;
       setStockMovements(mappedMovements);
     } catch (error) {
-      console.error('Erreur fetchStockMovements:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchStockMovements:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -431,6 +489,7 @@ export const AppProvider = ({ children }) => {
 
   // Charger les statistiques du dashboard depuis l'API
   const fetchDashboardStats = useCallback(async () => {
+    if (!USE_API) return;
     if (!loggedIn) return;
 
     try {
@@ -508,7 +567,7 @@ export const AppProvider = ({ children }) => {
       const data = await response.json();
       setDashboardStats(prev => ({ ...prev, ...data }));
     } catch (error) {
-      console.error('Erreur fetchDashboardStats:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchDashboardStats:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -562,7 +621,7 @@ export const AppProvider = ({ children }) => {
 
       setInvoices(mappedInvoices);
     } catch (error) {
-      console.error('Erreur fetchInvoices:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchInvoices:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -603,7 +662,7 @@ export const AppProvider = ({ children }) => {
       const apiQuotes = data.results ? data.results : data;
       setQuotes(Array.isArray(apiQuotes) ? apiQuotes : []);
     } catch (error) {
-      console.error('Erreur fetchQuotes:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchQuotes:', error);
       // Ne pas afficher de notification si c'est une erreur réseau (serveur non disponible)
       if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
         console.warn('Serveur non disponible ou erreur réseau pour fetchQuotes');
@@ -628,6 +687,7 @@ export const AppProvider = ({ children }) => {
 
   // Charger les données des graphiques du dashboard depuis l'API
   const fetchDashboardCharts = useCallback(async () => {
+    if (!USE_API) return;
     if (!loggedIn) return;
 
     try {
@@ -704,7 +764,7 @@ export const AppProvider = ({ children }) => {
         top_products: data.top_products
       }));
     } catch (error) {
-      console.error('Erreur fetchDashboardCharts:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchDashboardCharts:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -745,7 +805,7 @@ export const AppProvider = ({ children }) => {
       setClients(list);
       return list;
     } catch (error) {
-      console.error('Erreur fetchClients:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchClients:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -788,7 +848,7 @@ export const AppProvider = ({ children }) => {
       setUsers(apiUsers);
       return apiUsers;
     } catch (error) {
-      console.error('Erreur fetchUsers:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchUsers:', error);
       if (error.message === 'Session expirée') {
         setAccessToken(null);
         setRefreshToken(null);
@@ -811,18 +871,18 @@ export const AppProvider = ({ children }) => {
     if (!loggedIn || !accessToken) return;
     const adminCalls = isAdmin
       ? [
-          fetchProducts().catch(err => console.error('Erreur fetchProducts:', err)),
-          fetchStockMovements().catch(err => console.error('Erreur fetchStockMovements:', err)),
-          fetchDashboardStats().catch(err => console.error('Erreur fetchDashboardStats:', err)),
-          fetchDashboardCharts().catch(err => console.error('Erreur fetchDashboardCharts:', err)),
-          fetchExpenses().catch(err => console.error('Erreur fetchExpenses:', err)),
-          fetchUsers().catch(err => console.error('Erreur fetchUsers:', err))
+          fetchProducts().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchProducts:', err); }),
+          fetchStockMovements().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchStockMovements:', err); }),
+          fetchDashboardStats().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchDashboardStats:', err); }),
+          fetchDashboardCharts().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchDashboardCharts:', err); }),
+          fetchExpenses().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchExpenses:', err); }),
+          fetchUsers().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchUsers:', err); })
         ]
       : [];
     const commonCalls = [
-      fetchInvoices().catch(err => console.error('Erreur fetchInvoices:', err)),
-      fetchQuotes().catch(err => console.error('Erreur fetchQuotes:', err)),
-      fetchClients().catch(err => console.error('Erreur fetchClients:', err))
+      fetchInvoices().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchInvoices:', err); }),
+      fetchQuotes().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchQuotes:', err); }),
+      fetchClients().catch(err => { if (!isConnectionError(err)) console.error('Erreur fetchClients:', err); })
     ];
     Promise.allSettled([...adminCalls, ...commonCalls]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1074,7 +1134,7 @@ export const AppProvider = ({ children }) => {
       // Préparer les données au format attendu par l'API
       const payload = {
         client_name: invoiceData.client_name,
-        status: invoiceData.status,
+        company: invoiceData.company || 'NETSYSTEME',
         is_proforma: invoiceData.is_proforma || false,
         items: invoiceData.items.map(item => ({
           product: item.product,
@@ -1128,6 +1188,7 @@ export const AppProvider = ({ children }) => {
         invoice_number: newInvoice.invoice_number ?? newInvoice.number ?? (newInvoice.id ? `FACTURE-${newInvoice.id}` : 'FACTURE-NEW'),
         date: newInvoice.date ?? new Date().toISOString().slice(0, 10),
         client_name: newInvoice.client_name ?? invoiceData.client_name,
+        company: newInvoice.company ?? invoiceData.company ?? 'NETSYSTEME',
         items: Array.isArray(rawItems) ? rawItems.map(mapItem) : [],
         is_proforma: invoiceData.is_proforma || false,
         is_cancelled: false
@@ -1527,7 +1588,7 @@ export const AppProvider = ({ children }) => {
       const apiExpenses = data.results ? data.results : data;
       setExpenses(Array.isArray(apiExpenses) ? apiExpenses : []);
     } catch (error) {
-      console.error('Erreur fetchExpenses:', error);
+      if (!isConnectionError(error)) console.error('Erreur fetchExpenses:', error);
       // Ne pas afficher de notification si c'est une erreur réseau
       if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
         console.warn('Serveur non disponible ou erreur réseau pour fetchExpenses');
@@ -1881,6 +1942,7 @@ export const AppProvider = ({ children }) => {
     showNotification,
     apiCall,
     fetchProducts,
+    fetchStockMovements,
     fetchInvoices,
     fetchQuotes,
     fetchExpenses,

@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import { Search, Plus, Edit, Trash2, User } from 'lucide-react';
 
 const Clients = () => {
@@ -86,17 +87,29 @@ const Clients = () => {
   if (showLoader) return <Loader />;
 
   return (
-    <div className="space-y-6">
-      <div className="page-header">
-        <h1 className="page-title">Gestion des Clients</h1>
-        <p className="page-subtitle">Gérez vos clients et leurs informations</p>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader
+        title="Gestion des Clients"
+        subtitle="Gérez vos clients et leurs informations"
+        badge="Clients"
+        icon={User}
+      >
+        {canManageClients && (
+          <button
+            onClick={() => { setEditingClient(null); setShowForm(true); }}
+            className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            Nouveau client
+          </button>
+        )}
+      </PageHeader>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
+      <div className="glass-card overflow-hidden shadow-xl border-white/60">
+        <div className="p-6 border-b border-slate-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Rechercher un client..."
@@ -107,88 +120,57 @@ const Clients = () => {
                   if (e.target.value.trim()) next.set('search', e.target.value); else next.delete('search');
                   setSearchParams(next, { replace: true });
                 }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="input-field pl-12"
               />
             </div>
-            {canManageClients && (
-              <button
-                onClick={() => {
-                  setEditingClient(null);
-                  setShowForm(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Nouveau client
-              </button>
-            )}
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Adresse
-                </th>
-                {canManageClients && (
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                )}
+                <th className="table-header">Client</th>
+                <th className="table-header">Contact</th>
+                <th className="table-header">Adresse</th>
+                {canManageClients && <th className="table-header text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {filteredClients.map((client) => (
-                <tr key={client.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-blue-600" />
+                <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="table-cell">
+                    <div className="flex items-center gap-4">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md shadow-primary-500/25">
+                        {(client.name || '?').charAt(0).toUpperCase()}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                        <div className="text-sm text-gray-500">
-                          Créé le {new Date(client.created_at).toLocaleDateString()}
-                        </div>
+                      <div>
+                        <div className="font-bold text-slate-800">{client.name}</div>
+                        <div className="text-xs text-slate-500">Créé le {new Date(client.created_at).toLocaleDateString('fr-FR')}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{client.email || '-'}</div>
-                    <div className="text-sm text-gray-500">{client.phone || '-'}</div>
+                  <td className="table-cell">
+                    <div className="text-slate-700">{client.email || '-'}</div>
+                    <div className="text-sm text-slate-500">{client.phone || '-'}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 max-w-xs truncate">
-                      {client.address || '-'}
-                    </div>
-                  </td>
+                  <td className="table-cell max-w-xs truncate">{client.address || '-'}</td>
                   {canManageClients && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
+                    <td className="table-cell text-right">
+                      <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => {
-                            setEditingClient(client);
-                            setShowForm(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                          onClick={() => { setEditingClient(client); setShowForm(true); }}
+                          className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
                           title="Modifier"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => setConfirmDelete(client)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                          className="p-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                           title="Supprimer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </td>
@@ -199,26 +181,19 @@ const Clients = () => {
           </table>
           
           {filteredClients.length === 0 && (
-            <div className="text-center py-12">
-              <User className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun client</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {searchTerm
-                  ? 'Aucun client trouvé pour votre recherche.'
-                  : canManageClients
-                    ? 'Commencez par créer un nouveau client.'
-                    : 'Aucun client disponible.'}
+            <div className="text-center py-20">
+              <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                <User className="w-10 h-10 text-slate-400" />
+              </div>
+              <h3 className="font-bold text-slate-700 text-lg">Aucun client</h3>
+              <p className="mt-1 text-slate-500 text-sm">
+                {searchTerm ? 'Aucun client trouvé pour votre recherche.' : canManageClients ? 'Commencez par créer un nouveau client.' : 'Aucun client disponible.'}
               </p>
               {!searchTerm && canManageClients && (
-                <div className="mt-6">
-                  <button
-                    onClick={() => setShowForm(true)}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouveau client
-                  </button>
-                </div>
+                <button onClick={() => setShowForm(true)} className="btn-primary mt-6">
+                  <Plus className="w-5 h-5" />
+                  Nouveau client
+                </button>
               )}
             </div>
           )}
@@ -268,7 +243,7 @@ const Clients = () => {
             <button
               onClick={() => handleDeleteClient(confirmDelete?.id)}
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+              className="btn-danger"
             >
               Supprimer
             </button>

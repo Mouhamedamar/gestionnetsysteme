@@ -33,7 +33,7 @@ const Header = () => {
     <header className="sticky top-0 z-10 p-4">
       <div className="glass-card px-4 sm:px-6 py-3 flex items-center justify-between gap-4 border-white/40 shadow-xl">
         {/* Search Bar */}
-        <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center gap-3 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-200/50 max-w-md w-full transition-all focus-within:ring-2 focus-within:ring-primary-500/25 focus-within:bg-white focus-within:border-primary-500">
+        <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center gap-3 bg-slate-100/50 px-4 py-2.5 rounded-xl border border-slate-200/50 max-w-md w-full transition-all duration-300 focus-within:ring-2 focus-within:ring-primary-500/25 focus-within:bg-white focus-within:border-primary-500">
           <Search className="w-4 h-4 text-slate-400 shrink-0" aria-hidden />
           <input
             type="search"
@@ -49,7 +49,7 @@ const Header = () => {
           {/* Notifications */}
           <button
             type="button"
-            className="p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+            className="p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
@@ -76,7 +76,7 @@ const Header = () => {
             <button
               type="button"
               onClick={handleLogout}
-              className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+              className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:scale-105 active:scale-95 rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
               title="Déconnexion"
               aria-label="Déconnexion"
             >

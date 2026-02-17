@@ -11,9 +11,9 @@ class Invoice(models.Model):
     """
     Modèle pour les factures
     """
-    STATUS_CHOICES = [
-        ('PAYE', 'Payé'),
-        ('NON_PAYE', 'Non payé'),
+    COMPANY_CHOICES = [
+        ('NETSYSTEME', 'NETSYSTEME'),
+        ('SSE', 'SSE'),
     ]
 
     invoice_number = models.CharField(
@@ -50,17 +50,24 @@ class Invoice(models.Model):
         validators=[MinValueValidator(0)],
         verbose_name="Total TTC"
     )
-    status = models.CharField(
-        max_length=10,
-        choices=STATUS_CHOICES,
-        default='NON_PAYE',
-        verbose_name="Statut"
+    company = models.CharField(
+        max_length=20,
+        choices=COMPANY_CHOICES,
+        default='NETSYSTEME',
+        verbose_name="Société"
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Date de modification")
     deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="Date de suppression")
     is_cancelled = models.BooleanField(default=False, verbose_name="Annulée")
     is_proforma = models.BooleanField(default=False, verbose_name="Facture Pro Forma")
+    amount_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+        verbose_name="Montant payé (tranches)"
+    )
 
     class Meta:
         verbose_name = "Facture"
@@ -68,7 +75,6 @@ class Invoice(models.Model):
         ordering = ['-date', '-created_at']
         indexes = [
             models.Index(fields=['invoice_number']),
-            models.Index(fields=['status']),
             models.Index(fields=['date']),
         ]
 
@@ -84,6 +90,32 @@ class Invoice(models.Model):
             unique_id = str(uuid.uuid4())[:8].upper()
             self.invoice_number = f"INV-{date_str}-{unique_id}"
         return self.invoice_number
+
+    @property
+    def remaining_amount(self):
+        """Montant restant à payer (TTC - payé)."""
+        total = self.total_ttc or Decimal('0')
+        paid = self.amount_paid or Decimal('0')
+        return max(Decimal('0'), total - paid)
+
+    def get_payment_status(self):
+        """
+        Statut de paiement selon les tranches :
+        - PAYEE : client a tout payé
+        - PARTIEL : partiellement payé (reste à payer)
+        - EN_ATTENTE : rien payé
+        """
+        if self.is_cancelled:
+            return 'ANNULEE'
+        total = self.total_ttc or Decimal('0')
+        paid = self.amount_paid or Decimal('0')
+        if total <= 0:
+            return 'PAYEE'
+        if paid >= total:
+            return 'PAYEE'
+        if paid > 0:
+            return 'PARTIEL'
+        return 'EN_ATTENTE'
 
     def calculate_totals(self):
         """Calcule les totaux HT et TTC à partir des items"""
@@ -103,7 +135,6 @@ class Invoice(models.Model):
                 item.product.quantity += item.quantity
                 item.product.save()
             self.is_cancelled = True
-            self.status = 'NON_PAYE'
             self.save()
 
     def soft_delete(self):

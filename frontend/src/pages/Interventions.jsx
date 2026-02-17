@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PageHeader from '../components/PageHeader';
 import Loader from '../components/Loader';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -52,6 +53,10 @@ const Interventions = () => {
     status: 'EN_ATTENTE',
     priority: 'NORMALE',
     scheduled_date: '',
+    estimated_duration_minutes: '',
+    intervention_type: '',
+    other_type_detail: '',
+    is_unregistered_client: false,
     notes: '',
     products: []
   });
@@ -212,6 +217,10 @@ const Interventions = () => {
       status: 'EN_ATTENTE',
       priority: 'NORMALE',
       scheduled_date: '',
+      estimated_duration_minutes: '',
+      intervention_type: '',
+      other_type_detail: '',
+      is_unregistered_client: false,
       notes: '',
       products: []
     });
@@ -231,7 +240,11 @@ const Interventions = () => {
       technician: intervention.technician || '',
       status: intervention.status || 'EN_ATTENTE',
       priority: intervention.priority || 'NORMALE',
-      scheduled_date: intervention.scheduled_date ? intervention.scheduled_date.split('T')[0] : '',
+      scheduled_date: intervention.scheduled_date ? (intervention.scheduled_date.includes('T') ? intervention.scheduled_date.slice(0, 16) : intervention.scheduled_date + 'T00:00') : '',
+      estimated_duration_minutes: intervention.estimated_duration_minutes ?? '',
+      intervention_type: (intervention.title || '').startsWith('Autres - ') ? 'Autres' : (intervention.intervention_type || intervention.title || ''),
+      other_type_detail: (intervention.title || '').startsWith('Autres - ') ? (intervention.title || '').replace(/^Autres - /, '') : '',
+      is_unregistered_client: !!(intervention.client_name && !intervention.client),
       notes: intervention.notes || '',
       products: (intervention.products_used || []).map(p => ({
         product: p.product,
@@ -373,29 +386,20 @@ const Interventions = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header Section */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Wrench className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-              <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Technique</span>
-            </div>
-            <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Interventions</h1>
-            <p className="text-slate-500 font-medium">Gérez les interventions techniques et assignez les techniciens.</p>
-          </div>
-          <button 
-            onClick={handleAddIntervention}
-            className="btn-primary shadow-xl shadow-primary-500/30 px-8 py-4 text-lg flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Nouvelle Intervention
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Interventions"
+        subtitle="Gérez les interventions techniques et assignez les techniciens"
+        badge="Technique"
+        icon={Wrench}
+      >
+        <button
+          onClick={handleAddIntervention}
+          className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+        >
+          <Plus className="w-5 h-5" />
+          Nouvelle Intervention
+        </button>
+      </PageHeader>
 
       {/* Filters Section */}
       <div className="card p-6">
@@ -628,18 +632,6 @@ const Interventions = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Titre <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="input-field"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Priorité
               </label>
               <select
@@ -653,7 +645,64 @@ const Interventions = () => {
                 <option value="URGENTE">Urgente</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                Type d&apos;intervention <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={(formData.intervention_type || formData.title || '').startsWith('Autres') ? 'Autres' : (formData.intervention_type || formData.title)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({
+                    ...formData,
+                    intervention_type: val,
+                    title: val === 'Autres' ? (formData.other_type_detail ? `Autres - ${formData.other_type_detail}` : 'Autres') : val,
+                    ...(val !== 'Autres' ? { other_type_detail: '' } : {})
+                  });
+                }}
+                className="input-field appearance-none"
+                required
+              >
+                <option value="">Sélectionner...</option>
+                <option value="Installation">Installation</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Installation Vidéo surveillance filaire">Installation Vidéo surveillance filaire</option>
+                <option value="Installation Vidéo surveillance sans-fil">Installation Vidéo surveillance sans-fil</option>
+                <option value="Installation Téléphonique">Installation Téléphonique</option>
+                <option value="Installation Sécurité Incendie">Installation Sécurité Incendie</option>
+                <option value="Réseau informatique">Réseau informatique</option>
+                <option value="Entretien parc">Entretien parc</option>
+                <option value="Installation logiciel">Installation logiciel</option>
+                <option value="MAJ version logiciel">MAJ version logiciel</option>
+                <option value="Dépannage logiciel">Dépannage logiciel</option>
+                <option value="Centrale téléphonique">Centrale téléphonique</option>
+                <option value="Formation initiale">Formation initiale</option>
+                <option value="Autres">Autres</option>
+              </select>
+            </div>
           </div>
+
+          {(formData.intervention_type || formData.title) === 'Autres' && (
+            <div className="space-y-2">
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                Précisez (si Autres)
+              </label>
+              <input
+                type="text"
+                value={formData.other_type_detail || ''}
+                onChange={(e) => {
+                  const detail = e.target.value;
+                  setFormData({
+                    ...formData,
+                    other_type_detail: detail,
+                    title: detail ? `Autres - ${detail}` : 'Autres'
+                  });
+                }}
+                className="input-field"
+                placeholder="Sélectionner ou préciser..."
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
@@ -662,41 +711,89 @@ const Interventions = () => {
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="input-field min-h-[100px]"
+              className="input-field min-h-[80px]"
               placeholder="Description de l'intervention..."
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Client
-              </label>
-              <select
-                value={formData.client}
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.is_unregistered_client}
                 onChange={(e) => {
-                  const clientId = e.target.value;
-                  const selectedClient = clients?.find(c => String(c.id) === String(clientId));
+                  const checked = e.target.checked;
                   setFormData({
                     ...formData,
-                    client: clientId,
-                    client_name: selectedClient ? (selectedClient.name || '') : formData.client_name,
-                    client_phone: selectedClient ? (selectedClient.phone || '') : formData.client_phone,
-                    client_address: selectedClient ? (selectedClient.address || '') : formData.client_address
+                    is_unregistered_client: checked,
+                    ...(checked ? { client: '' } : { client_name: '', client_phone: '' })
                   });
                 }}
-                className="input-field appearance-none"
-              >
-                <option value="">Sélectionner un client</option>
-                {clients && clients.length > 0 ? (
-                  clients.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))
-                ) : (
-                  <option value="" disabled>Chargement des clients...</option>
-                )}
-              </select>
-            </div>
+                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm font-black text-slate-700 uppercase tracking-wider">Client non enregistré</span>
+            </label>
+
+            {formData.is_unregistered_client ? (
+              <div className="grid grid-cols-2 gap-4 pl-7">
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                    Nom du client <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.client_name}
+                    onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                    className="input-field"
+                    required={formData.is_unregistered_client}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                    Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.client_phone}
+                    onChange={(e) => setFormData({ ...formData, client_phone: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 pl-7">
+                <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                  Client existant
+                </label>
+                <select
+                  value={formData.client}
+                  onChange={(e) => {
+                    const clientId = e.target.value;
+                    const selectedClient = clients?.find(c => String(c.id) === String(clientId));
+                    setFormData({
+                      ...formData,
+                      client: clientId,
+                      client_name: selectedClient ? (selectedClient.name || '') : '',
+                      client_phone: selectedClient ? (selectedClient.phone || '') : '',
+                      client_address: selectedClient ? (selectedClient.address || '') : ''
+                    });
+                  }}
+                  className="input-field appearance-none"
+                >
+                  <option value="">Sélectionner un client</option>
+                  {clients && clients.length > 0 ? (
+                    clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))
+                  ) : (
+                    <option value="" disabled>Chargement des clients...</option>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Technicien
@@ -706,7 +803,7 @@ const Interventions = () => {
                 onChange={(e) => setFormData({ ...formData, technician: e.target.value })}
                 className="input-field appearance-none"
               >
-                <option value="">Non assigné</option>
+                <option value="">Assigner plus tard</option>
                 {technicians && technicians.length > 0 ? (
                   technicians.map(u => (
                     <option key={u.id} value={u.id}>
@@ -718,131 +815,138 @@ const Interventions = () => {
                 )}
               </select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Nom du client
-            </label>
-            <input
-              type="text"
-              value={formData.client_name}
-              onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-              className="input-field"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Téléphone
-              </label>
-              <input
-                type="tel"
-                value={formData.client_phone}
-                onChange={(e) => setFormData({ ...formData, client_phone: e.target.value })}
-                className="input-field"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Date prévue
+                Date prévue <span className="text-rose-500">*</span>
               </label>
               <input
                 type="datetime-local"
                 value={formData.scheduled_date}
                 onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
                 className="input-field"
+                required
               />
             </div>
           </div>
 
+          <div className={`grid gap-4 ${formData.is_unregistered_client ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            <div className="space-y-2">
+              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                Durée estimée (minutes)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.estimated_duration_minutes}
+                onChange={(e) => setFormData({ ...formData, estimated_duration_minutes: e.target.value })}
+                className="input-field"
+                placeholder="Ex: 60"
+              />
+            </div>
+            {!formData.is_unregistered_client && (
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+                  Téléphone
+                </label>
+                <input
+                  type="tel"
+                  value={formData.client_phone}
+                  onChange={(e) => setFormData({ ...formData, client_phone: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Adresse d'intervention
+              Adresse
             </label>
             <textarea
               value={formData.client_address}
               onChange={(e) => setFormData({ ...formData, client_address: e.target.value })}
               className="input-field min-h-[80px]"
+              placeholder="Adresse d'intervention"
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Statut
-            </label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="input-field appearance-none"
-            >
-              <option value="EN_ATTENTE">En attente</option>
-              <option value="EN_COURS">En cours</option>
-              <option value="TERMINE">Terminé</option>
-              <option value="ANNULE">Annulé</option>
-            </select>
-          </div>
-
-          {/* Produits utilisés */}
-          <div className="space-y-4 border-t pt-4">
-            <div className="flex items-center justify-between">
+          {editingIntervention && (
+            <div className="space-y-2">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Produits utilisés
+                Statut
               </label>
-              <button
-                type="button"
-                onClick={addProductToForm}
-                className="btn-secondary text-sm py-1 px-3 flex items-center gap-2"
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="input-field appearance-none"
               >
-                <Plus className="w-4 h-4" />
-                Ajouter
-              </button>
+                <option value="EN_ATTENTE">En attente</option>
+                <option value="EN_COURS">En cours</option>
+                <option value="TERMINE">Terminé</option>
+                <option value="ANNULE">Annulé</option>
+              </select>
             </div>
-            {formData.products.map((product, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <select
-                    value={product.product}
-                    onChange={(e) => updateProductInForm(index, 'product', e.target.value)}
-                    className="input-field appearance-none"
-                  >
-                    <option value="">Sélectionner un produit</option>
-                    {(products || []).filter(p => !p.deleted_at && p.is_active).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-24">
-                  <input
-                    type="number"
-                    min="1"
-                    value={product.quantity}
-                    onChange={(e) => updateProductInForm(index, 'quantity', parseInt(e.target.value) || 1)}
-                    className="input-field"
-                    placeholder="Qté"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeProductFromForm(index)}
-                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Notes techniques
+          {/* Matériels requis */}
+          <div className="space-y-4 border-t pt-4">
+            <label className="text-sm font-black text-slate-700 uppercase tracking-wider block">
+              Matériels requis
             </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="input-field min-h-[100px]"
-            />
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {(products || []).filter(p => !p.deleted_at && p.is_active).map((p) => {
+                const entry = formData.products.find(x => String(x.product) === String(p.id));
+                const isChecked = !!entry;
+                const qty = entry ? (entry.quantity || 1) : 1;
+                const stock = p.quantity != null ? p.quantity : 0;
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+                    <input
+                      type="checkbox"
+                      id={`mat-${p.id}`}
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setFormData({
+                            ...formData,
+                            products: formData.products.filter(x => String(x.product) !== String(p.id))
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            products: [...formData.products, { product: p.id, quantity: 1, notes: '' }]
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <label htmlFor={`mat-${p.id}`} className="flex-1 text-sm text-slate-700 cursor-pointer">
+                      {p.name} <span className="text-slate-400 font-normal">({stock} en stock)</span>
+                    </label>
+                    <div className="flex items-center gap-2 w-28">
+                      <input
+                        type="number"
+                        min="0"
+                        value={isChecked ? qty : ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 0;
+                          if (!isChecked) return;
+                          const rest = formData.products.filter(x => String(x.product) !== String(p.id));
+                          setFormData({
+                            ...formData,
+                            products: val > 0 ? [...rest, { product: p.id, quantity: val, notes: '' }] : rest
+                          });
+                        }}
+                        disabled={!isChecked}
+                        className="input-field w-16 text-center py-1.5"
+                        placeholder="Qté"
+                      />
+                      <span className="text-xs text-slate-500 w-6">pcs</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex gap-4 pt-4">

@@ -9,7 +9,11 @@ class ClientSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Client
-        fields = ['id', 'name', 'phone', 'email', 'address', 'created_at', 'updated_at']
+        fields = [
+            'id', 'name', 'first_name', 'last_name', 'phone', 'email', 'address',
+            'rccm_number', 'registration_number', 'ninea_number',
+            'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def validate_email(self, value):

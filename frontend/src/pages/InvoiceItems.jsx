@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Package, ArrowLeft, Plus, Trash2, FileText, Printer, Download, Eye } from 'lucide-react';
-import InvoicePDF from '../components/InvoicePDF';
+import { Package, ArrowLeft, Plus, Trash2, FileText, Download, Eye, Banknote, Save } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -18,7 +18,8 @@ const InvoiceItems = () => {
     deleteInvoiceItem,
     products,
     fetchProducts,
-    showNotification
+    showNotification,
+    apiCall,
   } = useApp();
 
   const [invoice, setInvoice] = useState(null);
@@ -27,9 +28,10 @@ const InvoiceItems = () => {
     quantity: 1,
     unit_price: 0
   });
-  const [showInvoicePDF, setShowInvoicePDF] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,6 +89,39 @@ const InvoiceItems = () => {
     setItemToDelete({ id: itemId, name: item?.product_name || 'cet article' });
   };
 
+  const handleRecordPayment = async () => {
+    const amount = parseFloat(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showNotification('Veuillez saisir un montant valide', 'error');
+      return;
+    }
+    const totalTtc = typeof invoice.total_ttc === 'string' ? parseFloat(invoice.total_ttc) : Number(invoice.total_ttc) || 0;
+    const paid = typeof invoice.amount_paid === 'string' ? parseFloat(invoice.amount_paid) : Number(invoice.amount_paid) || 0;
+    if (paid + amount > totalTtc) {
+      showNotification(`Le montant ne peut pas dépasser le restant à payer (${formatCurrency(totalTtc - paid)} Fcfa)`, 'error');
+      return;
+    }
+    try {
+      setRecordingPayment(true);
+      const response = await apiCall(`/api/invoices/${id}/record-payment/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Erreur lors de l\'enregistrement du paiement');
+      }
+      await fetchInvoices();
+      setPaymentAmount('');
+      showNotification('Paiement enregistré', 'success');
+    } catch (e) {
+      showNotification(e.message || 'Erreur lors de l\'enregistrement du paiement', 'error');
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
   const confirmDeleteItem = async () => {
     if (!itemToDelete) return;
     
@@ -116,46 +151,91 @@ const InvoiceItems = () => {
 
   return (
       <div className="space-y-8 animate-fade-in pb-12">
-        {/* Header */}
-        <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <FileText className="w-32 h-32 text-primary-600" />
+        <PageHeader
+          title={`Facture #${invoice.invoice_number}`}
+          subtitle={`${invoice.client_name || 'Non spécifié'} · ${invoice.company || 'NETSYSTEME'} · ${invoice.is_proforma ? 'Pro forma' : 'Facture'}`}
+          badge={invoice.is_proforma ? 'Pro forma' : 'Facture'}
+          icon={FileText}
+        >
+          <button
+            onClick={() => navigate('/invoices')}
+            className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Retour aux factures
+          </button>
+          <div className="text-right">
+            <p className="text-xl font-black text-white">
+              {(() => {
+                const amount = typeof invoice.total_ttc === 'string' ? parseFloat(invoice.total_ttc) || 0 : Number(invoice.total_ttc) || 0;
+                return formatCurrency(amount);
+              })()} Fcfa
+            </p>
+            <p className="text-white/80 text-sm">
+              {invoice.date ? new Date(invoice.date).toLocaleDateString('fr-FR') : 'Date non spécifiée'}
+            </p>
           </div>
-          <div className="relative z-10">
-            <button
-              onClick={() => navigate('/invoices')}
-              className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors mb-6"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour aux factures
-            </button>
+        </PageHeader>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black text-primary-600 mb-2">
-                  Facture #{invoice.invoice_number}
-                </h1>
-                <p className="text-slate-800 text-lg font-bold mb-1">Client: <span className="text-slate-900 font-black">{invoice.client_name || 'Non spécifié'}</span></p>
-                <p className="text-slate-700 text-base mt-2 font-semibold">
-                  Statut: <span className={invoice.status === 'PAYE' ? 'text-green-700 font-black' : 'text-yellow-700 font-black'}>{invoice.status === 'PAYE' ? '✓ Payé' : 'Non payé'}</span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-3xl font-black text-primary-600">
-                  {(() => {
-                    const amount = typeof invoice.total_ttc === 'string' 
-                      ? parseFloat(invoice.total_ttc) || 0 
-                      : Number(invoice.total_ttc) || 0;
-                    return formatCurrency(amount);
-                  })()} Fcfa
-                </p>
-                <p className="text-slate-700 text-sm mt-1 font-semibold">
-                  {invoice.date ? new Date(invoice.date).toLocaleDateString('fr-FR') : 'Date non spécifiée'}
-                </p>
-              </div>
-            </div>
+        {/* Paiement (tranches) */}
+        {!invoice.is_proforma && !invoice.is_cancelled && (
+          <div className="glass-card p-6 border-white/40 border-l-4 border-l-emerald-500">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <Banknote className="w-5 h-5 text-emerald-600" />
+              </span>
+              Paiement (tranches)
+            </h2>
+            {(() => {
+              const totalTtc = typeof invoice.total_ttc === 'string' ? parseFloat(invoice.total_ttc) : Number(invoice.total_ttc) || 0;
+              const paid = typeof invoice.amount_paid === 'string' ? parseFloat(invoice.amount_paid) : Number(invoice.amount_paid) || 0;
+              const remaining = typeof invoice.remaining_amount !== 'undefined' ? (typeof invoice.remaining_amount === 'string' ? parseFloat(invoice.remaining_amount) : Number(invoice.remaining_amount)) : Math.max(0, totalTtc - paid);
+              return (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Total TTC</p>
+                      <p className="text-lg font-black text-slate-900">{formatCurrency(totalTtc)} Fcfa</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Payé</p>
+                      <p className="text-lg font-bold text-emerald-600">{formatCurrency(paid)} Fcfa</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Restant à payer</p>
+                      <p className="text-lg font-bold text-slate-900">{formatCurrency(remaining)} Fcfa</p>
+                    </div>
+                  </div>
+                  {remaining > 0 && (
+                    <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-slate-200">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Montant à enregistrer (Fcfa)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={paymentAmount}
+                          onChange={e => setPaymentAmount(e.target.value)}
+                          placeholder="0"
+                          className="w-40 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRecordPayment}
+                        disabled={recordingPayment || !paymentAmount.trim()}
+                        className="btn-primary py-2 px-4 flex items-center gap-2"
+                      >
+                        {recordingPayment ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Banknote className="w-4 h-4" />}
+                        Enregistrer un paiement
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
-        </div>
+        )}
 
         {/* Add Item Section */}
         <div className="glass-card p-6 border-white/40">
@@ -312,29 +392,14 @@ const InvoiceItems = () => {
           </div>
           <div className="flex gap-4">
             <button
-              onClick={() => setShowInvoicePDF(true)}
-              className="btn-primary py-3 px-6 font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-            >
-              <Eye className="w-5 h-5" />
-              Voir la facture
-            </button>
-            <button
-              onClick={() => window.print()}
+              onClick={() => showNotification('La facture est enregistrée')}
               className="btn-secondary py-3 px-6 font-bold shadow-lg shadow-slate-500/20 transition-all hover:shadow-xl flex items-center gap-2"
             >
-              <Printer className="w-5 h-5" />
-              Imprimer
+              <Save className="w-5 h-5" />
+              Enregistrer
             </button>
           </div>
         </div>
-
-        {/* Invoice PDF Modal */}
-        {showInvoicePDF && (
-          <InvoicePDF
-            invoice={invoice}
-            onClose={() => setShowInvoicePDF(false)}
-          />
-        )}
 
         {/* Modal de confirmation de suppression */}
         <ConfirmationModal

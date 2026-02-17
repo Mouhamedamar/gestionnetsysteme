@@ -9,12 +9,15 @@ import DashboardCommercial from './pages/DashboardCommercial';
 import Products from './pages/Products';
 import Clients from './pages/Clients';
 import StockMovements from './pages/StockMovements';
+import StockNotifications from './pages/StockNotifications';
 import Stock from './pages/Stock';
 import Invoices from './pages/Invoices';
 import Quotes from './pages/Quotes';
 import Expenses from './pages/Expenses';
 import Interventions from './pages/Interventions';
 import Installations from './pages/Installations';
+import InstallationPaymentReminders from './pages/InstallationPaymentReminders';
+import CreateInstallation from './pages/CreateInstallation';
 import ProFormaInvoices from './pages/ProFormaInvoices';
 import InvoiceItems from './pages/InvoiceItems';
 import CreateInvoice from './pages/CreateInvoice';
@@ -69,8 +72,11 @@ const AppRoutes = () => {
           <Route path="clients" element={<Clients />} />
           <Route path="stock" element={<Stock />} />
           <Route path="stock-movements" element={<StockMovements />} />
+          <Route path="stock-notifications" element={<StockNotifications />} />
           <Route path="interventions" element={<Interventions />} />
           <Route path="installations" element={<Installations />} />
+          <Route path="installations/rappels-paiement" element={<InstallationPaymentReminders />} />
+          <Route path="installations/add" element={<CreateInstallation />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="invoices/new" element={<CreateInvoice />} />
           <Route path="quotes" element={<Quotes />} />
@@ -80,6 +86,7 @@ const AppRoutes = () => {
           <Route path="expenses/:id/edit" element={<CreateExpense />} />
           <Route path="invoices/:id/items" element={<InvoiceItems />} />
           <Route path="proforma-invoices" element={<ProFormaInvoices />} />
+          <Route path="proforma-invoices/new" element={<CreateInvoice />} />
           <Route path="users" element={<Users />} />
           <Route path="zone-de-travail" element={<ZoneDeTravail />} />
           <Route path="pointage" element={<Pointage />} />

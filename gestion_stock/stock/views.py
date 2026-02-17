@@ -1,10 +1,16 @@
 from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import StockMovement
-from .serializers import StockMovementSerializer, StockMovementCreateSerializer
-from products.permissions import IsAdminUser
+from .models import StockMovement, StockNotificationRecipient, StockAlertSettings
+from .serializers import (
+    StockMovementSerializer,
+    StockMovementCreateSerializer,
+    StockNotificationRecipientSerializer,
+    StockAlertSettingsSerializer,
+)
+from .notifications import _normalize_phone, _send_sms
+from products.permissions import IsAdminUser as ProductsIsAdminUser
 
 
 class StockMovementViewSet(viewsets.ModelViewSet):
@@ -12,7 +18,7 @@ class StockMovementViewSet(viewsets.ModelViewSet):
     ViewSet pour la gestion des mouvements de stock
     """
     queryset = StockMovement.objects.filter(deleted_at__isnull=True)
-    permission_classes = [IsAdminUser]
+    permission_classes = [ProductsIsAdminUser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['product', 'movement_type']
     search_fields = ['product__name', 'comment']
@@ -65,3 +71,54 @@ class StockMovementViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class StockNotificationRecipientViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour gérer les responsables recevant les alertes SMS stock.
+    """
+    queryset = StockNotificationRecipient.objects.all()
+    serializer_class = StockNotificationRecipientSerializer
+    permission_classes = [ProductsIsAdminUser]
+
+    @action(detail=True, methods=['post'])
+    def send_test_sms(self, request, pk=None):
+        """Envoie un SMS de test au responsable."""
+        recipient = self.get_object()
+        phone = _normalize_phone(recipient.phone)
+        if not phone:
+            return Response(
+                {'error': 'Numéro de téléphone invalide'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        body = f"Test SMS Stock - {recipient.name}. Configuration OK."
+        ok = _send_sms(phone, body)
+        return Response(
+            {'status': 'SMS envoyé' if ok else 'API Orange non configurée (voir logs)'},
+            status=status.HTTP_200_OK
+        )
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([ProductsIsAdminUser])
+def stock_alert_settings(request):
+    """Récupère ou met à jour les paramètres d'alerte stock."""
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        settings_obj = StockAlertSettings.get_settings()
+        if request.method == 'GET':
+            serializer = StockAlertSettingsSerializer(settings_obj)
+            return Response(serializer.data)
+        # PATCH
+        serializer = StockAlertSettingsSerializer(settings_obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.exception("Erreur stock_alert_settings: %s", e)
+        from django.conf import settings as dj_settings
+        if getattr(dj_settings, 'DEBUG', False):
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'detail': 'Erreur serveur'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -5,9 +5,14 @@ import DocumentFooter from './DocumentFooter';
 import html2canvas from 'html2canvas';
 import { formatCurrency } from '../utils/formatCurrency';
 import { getProformaPdfFilename } from '../utils/pdfFilename';
+import StampNetsysteme from './StampNetsysteme';
+import StampSSE from './StampSSE';
 
-// Même image d'en-tête que la facture (frontend/public/invoice-header.png)
-const INVOICE_HEADER_IMAGE = '/invoice-header.png';
+// Images d'en-tête par société (comme sur la facture et le devis)
+const COMPANY_HEADERS = {
+  NETSYSTEME: { src: '/invoice-header.png', alt: 'NETSYSTEME - En-tête' },
+  SSE: { src: '/invoice-header-sse.png', alt: 'SSE - En-tête' },
+};
 
 const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false }) => {
   const invoiceRef = useRef(null);
@@ -95,12 +100,22 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
     }
   };
 
+  const company = (invoice.company && String(invoice.company).toUpperCase()) === 'SSE' ? 'SSE' : 'NETSYSTEME';
+  const headerConfig = COMPANY_HEADERS[company] || COMPANY_HEADERS.NETSYSTEME;
+  const isSSE = company === 'SSE';
+  const theme = {
+    label: isSSE ? 'text-[#c2410c]' : 'text-blue-800',
+    badge: isSSE ? 'bg-[#ea580c]' : 'bg-blue-800',
+    tableBorder: isSSE ? 'border-[#c2410c]' : 'border-blue-900',
+    totalBox: isSSE ? 'bg-[#ea580c]' : 'bg-blue-800',
+    borderLight: isSSE ? 'border-[#ea580c]/30' : 'border-blue-800/20',
+  };
   // En-tête avec image — même que sur la facture
   const InvoiceHeaderImage = () => (
     <div className="invoice-header-image w-full mb-4 overflow-hidden" style={{ pageBreakAfter: 'avoid' }}>
       <img
-        src={INVOICE_HEADER_IMAGE}
-        alt="NETSYSTEME - En-tête"
+        src={headerConfig.src}
+        alt={headerConfig.alt}
         className="w-full min-w-full h-auto object-cover object-top block"
         style={{ width: '100%', maxHeight: 'none' }}
         onError={(e) => { e.target.style.display = 'none'; }}
@@ -147,9 +162,9 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
               <InvoiceHeaderImage />
               {/* CLIENT (nom uniquement) à gauche, PROFORMA + N° + Date à droite */}
               <div className="grid grid-cols-2 gap-6 mb-8">
-                <div className="pb-3 border-b-2 border-blue-800/20">
+                <div className={`pb-3 border-b-2 ${theme.borderLight}`}>
                   <div className="inline-flex flex-col">
-                    <span className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                    <span className={`text-[11px] font-semibold tracking-wider uppercase ${theme.label}`}>
                       Client
                     </span>
                     <span className="mt-1 text-base font-semibold text-slate-900 leading-snug">
@@ -158,7 +173,7 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                  <div className="bg-blue-800 text-white px-5 py-3 rounded-lg shadow-sm w-fit">
+                  <div className={`${theme.badge} text-white px-5 py-3 rounded-lg shadow-sm w-fit`}>
                     <p className="text-sm font-bold uppercase tracking-wide">Pro forma</p>
                     <p className="text-sm font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
                   </div>
@@ -172,11 +187,11 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
               <div className="overflow-hidden rounded-lg">
               <table className="w-full border-collapse text-base">
                 <thead>
-                  <tr className="bg-blue-800">
-                    <th className="border border-blue-900 px-4 py-3 text-left text-sm font-bold text-white">Désignation</th>
-                    <th className="border border-blue-900 px-4 py-3 text-center text-sm font-bold text-white w-20">Qté</th>
-                    <th className="border border-blue-900 px-4 py-3 text-right text-sm font-bold text-white">P. Unit</th>
-                    <th className="border border-blue-900 px-4 py-3 text-right text-sm font-bold text-white">Total HT</th>
+                  <tr className={theme.badge}>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-left text-sm font-bold text-white`}>Désignation</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-center text-sm font-bold text-white w-20`}>Qté</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-sm font-bold text-white`}>P. Unit</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-sm font-bold text-white`}>Total HT</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,54 +220,21 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
                     <span className="font-medium">TVA (18%):</span>
                     <span className="font-semibold">{formatCurrency(tva)} F CFA</span>
                   </div>
-                  <div className="flex justify-between text-base font-bold bg-blue-800 text-white px-4 py-3 rounded-lg mt-2">
+                  <div className={`flex justify-between text-base font-bold ${theme.totalBox} text-white px-4 py-3 rounded-lg mt-2`}>
                     <span>Total TTC</span>
                     <span>{formatCurrency(totalTTC)} F CFA</span>
                   </div>
                 </div>
               </div>
-              {/* Tampon "La Direction" */}
+              {/* Tampon selon société */}
               <div className="absolute left-0 bottom-0">
-                <div className="w-36 h-36 border-[3px] border-blue-900 rounded-full flex flex-col items-center justify-center bg-white relative" style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  {/* Texte circulaire en haut */}
-                  <div className="absolute top-2 left-0 right-0 px-2">
-                    <p className="text-[7px] font-bold text-blue-900 text-center leading-tight" style={{ 
-                      transform: 'scaleY(0.6)',
-                      letterSpacing: '0.5px'
-                    }}>
-                      Netsysteme Informatique et Télécommunication
-                    </p>
-                  </div>
-                  
-                  {/* Étoiles en bas */}
-                  <div className="absolute bottom-5 left-0 right-0 flex justify-between px-8">
-                    <span className="text-[10px] text-blue-900 font-bold">★</span>
-                    <span className="text-[10px] text-blue-900 font-bold">★</span>
-                  </div>
-                  
-                  {/* Contenu central */}
-                  <div className="flex flex-col items-center justify-center mt-4">
-                    {/* Signature stylisée */}
-                    <div className="w-16 h-12 mb-1 flex items-center justify-center">
-                      <svg className="w-full h-full" viewBox="0 0 100 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 40 Q22 18, 38 40 T68 40" stroke="#1e3a8a" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M22 52 Q32 28, 48 52" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M52 36 Q62 24, 72 36" stroke="#1e3a8a" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                        <path d="M60 48 Q68 40, 76 48" stroke="#1e3a8a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                      </svg>
-                    </div>
-                    <div className="border-2 border-blue-900 rounded px-2 py-1 mt-1 bg-white">
-                      <p className="text-[9px] font-bold text-blue-900 text-center leading-tight">Le Directeur</p>
-                    </div>
-                    <p className="text-[7px] text-blue-900 text-center mt-0.5 leading-tight">site: www.netsys-info.com</p>
-                  </div>
-                </div>
+                {company === 'SSE' ? <StampSSE /> : <StampNetsysteme />}
               </div>
             </div>
             </div>
 
             {/* ========== PAGE 2 : CONDITIONS COMMERCIALES / CONDITIONS GÉNÉRALES ========== */}
-            <div className="mt-8 pt-6 border-t-2 border-blue-800/20 mb-8" style={{ pageBreakBefore: 'always' }}>
+            <div className={`mt-8 pt-6 border-t-2 ${theme.borderLight} mb-8`} style={{ pageBreakBefore: 'always' }}>
               <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">
                 Conditions générales / commerciales
               </h3>
@@ -284,7 +266,7 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
             </div>
 
             {/* Section BON POUR ACCORD */}
-            <div className="mt-8 pt-6 border-t-2 border-blue-800/20 mb-8">
+            <div className={`mt-8 pt-6 border-t-2 ${theme.borderLight} mb-8`}>
               <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider">Bon pour accord</h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -311,49 +293,16 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
                 </div>
               </div>
               
-              {/* Tampon à droite */}
+              {/* Tampon NETSYSTEME */}
               <div className="flex justify-end mt-6">
-                <div className="w-36 h-36 border-[3px] border-blue-900 rounded-full flex flex-col items-center justify-center bg-white relative" style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  {/* Texte circulaire en haut */}
-                  <div className="absolute top-2 left-0 right-0 px-2">
-                    <p className="text-[7px] font-bold text-blue-900 text-center leading-tight" style={{ 
-                      transform: 'scaleY(0.6)',
-                      letterSpacing: '0.5px'
-                    }}>
-                      Netsysteme Informatique et Télécommunication
-                    </p>
-                  </div>
-                  
-                  {/* Étoiles en bas */}
-                  <div className="absolute bottom-5 left-0 right-0 flex justify-between px-8">
-                    <span className="text-[10px] text-blue-900 font-bold">★</span>
-                    <span className="text-[10px] text-blue-900 font-bold">★</span>
-                  </div>
-                  
-                  {/* Contenu central */}
-                  <div className="flex flex-col items-center justify-center mt-4">
-                    {/* Signature stylisée */}
-                    <div className="w-16 h-12 mb-1 flex items-center justify-center">
-                      <svg className="w-full h-full" viewBox="0 0 100 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 40 Q22 18, 38 40 T68 40" stroke="#1e3a8a" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M22 52 Q32 28, 48 52" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M52 36 Q62 24, 72 36" stroke="#1e3a8a" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-                        <path d="M60 48 Q68 40, 76 48" stroke="#1e3a8a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                      </svg>
-                    </div>
-                    <div className="border-2 border-blue-900 rounded px-2 py-1 mt-1 bg-white">
-                      <p className="text-[9px] font-bold text-blue-900 text-center leading-tight">Le Directeur</p>
-                    </div>
-                    <p className="text-[7px] text-blue-900 text-center mt-0.5 leading-tight">site: www.netsys-info.com</p>
-                  </div>
-</div>
-                </div>
+                {company === 'SSE' ? <StampSSE /> : <StampNetsysteme />}
+              </div>
               </div>
             </div>
 
             {/* Pied de page (page 2 - Pro forma) */}
-            <div className="mt-10 pt-6 border-t-2 border-blue-800/20">
-              <DocumentFooter />
+            <div className={`mt-10 pt-6 border-t-2 ${theme.borderLight}`}>
+              <DocumentFooter company={company} />
             </div>
           </div>
         </div>

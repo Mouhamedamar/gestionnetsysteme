@@ -113,7 +113,7 @@ class UserProfile(models.Model):
         """
         if self.role == 'admin' or self.user.is_staff:
             return ['/', '/products', '/stock', '/stock-movements', '/interventions',
-                   '/installations', '/clients', '/quotes', '/invoices',
+                   '/installations', '/installations/rappels-paiement', '/clients', '/quotes', '/invoices',
                    '/proforma-invoices', '/expenses', '/zone-de-travail', '/pointage', '/users']
         elif self.role == 'technicien':
             return ['/', '/interventions', '/pointage']
@@ -127,9 +127,25 @@ class Client(models.Model):
     Model for managing clients
     """
     name = models.CharField(max_length=200, verbose_name="Nom du client")
+    first_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Prénom")
+    last_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nom")
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone")
     email = models.EmailField(blank=True, null=True, verbose_name="Email")
     address = models.TextField(blank=True, null=True, verbose_name="Adresse")
+    rccm_number = models.CharField(
+        max_length=100, blank=True, null=True,
+        verbose_name="Numéro RCCM",
+        help_text="Registre du Commerce"
+    )
+    registration_number = models.CharField(
+        max_length=100, blank=True, null=True,
+        verbose_name="N° Immatriculation"
+    )
+    ninea_number = models.CharField(
+        max_length=50, blank=True, null=True,
+        verbose_name="Numéro NINEA",
+        help_text="Identification fiscale"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Date de modification")
 

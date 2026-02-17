@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { FileText, Plus, Search, Download, Eye, CheckCircle, XCircle, Clock, FileDown, ArrowRight } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
+import { FileText, Plus, Search, Download, Eye, FileDown, ArrowRight, Filter } from 'lucide-react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useDebounce } from '../hooks/useDebounce';
 import Modal from '../components/Modal';
@@ -13,7 +14,7 @@ const Quotes = () => {
   const { quotes, loading, fetchQuotes, showNotification, loggedIn, apiCall } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterCompany, setFilterCompany] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedQuote, setSelectedQuote] = useState(null);
@@ -56,16 +57,11 @@ const Quotes = () => {
 
   const filteredQuotes = quotes.filter(quote => {
     const searchLower = (debouncedSearchTerm || '').toLowerCase();
-    const matchesSearch = !searchLower || (
-      (quote.quote_number ?? '').toString().toLowerCase().includes(searchLower) ||
-      (quote.client_name || '').toLowerCase().includes(searchLower) ||
-      (quote.client_email || '').toLowerCase().includes(searchLower) ||
-      (quote.status || '').toLowerCase().includes(searchLower)
-    );
-    
-    const matchesStatus = statusFilter === 'all' || quote.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+    if (searchLower && !(quote.quote_number ?? '').toString().toLowerCase().includes(searchLower) && !(quote.client_name || '').toLowerCase().includes(searchLower) && !(quote.client_email || '').toLowerCase().includes(searchLower)) {
+      return false;
+    }
+    if (filterCompany && (quote.company || 'NETSYSTEME') !== filterCompany) return false;
+    return true;
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -127,24 +123,6 @@ const Quotes = () => {
     }
   };
 
-  const handleStatusChange = async (quoteId, action) => {
-    try {
-      const response = await apiCall(`/api/quotes/${quoteId}/${action}/`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors du changement de statut');
-      }
-
-      showNotification('Statut modifié avec succès', 'success');
-      await fetchQuotes();
-    } catch (error) {
-      console.error('Erreur:', error);
-      showNotification('Erreur lors du changement de statut', 'error');
-    }
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return 'Date non spécifiée';
     try {
@@ -173,39 +151,6 @@ const Quotes = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toUpperCase()) {
-      case 'BROUILLON':
-        return 'bg-slate-500/20 text-slate-400';
-      case 'ENVOYE':
-        return 'bg-blue-500/20 text-blue-400';
-      case 'ACCEPTE':
-        return 'bg-green-500/20 text-green-400';
-      case 'REFUSE':
-        return 'bg-red-500/20 text-red-400';
-      case 'EXPIRE':
-        return 'bg-orange-500/20 text-orange-400';
-      case 'CONVERTI':
-        return 'bg-purple-500/20 text-purple-400';
-      default:
-        return 'bg-slate-500/20 text-slate-400';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status?.toUpperCase()) {
-      case 'ACCEPTE':
-        return CheckCircle;
-      case 'REFUSE':
-        return XCircle;
-      case 'ENVOYE':
-      case 'BROUILLON':
-        return Clock;
-      default:
-        return FileText;
-    }
-  };
-
   if (loading) return (
     <div className="p-8">
       <div className="glass-card p-8 animate-pulse">
@@ -218,91 +163,52 @@ const Quotes = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <FileText className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <h1 className="text-4xl font-black text-primary-600 mb-2">Devis</h1>
-          <p className="text-slate-800 text-lg mb-6 font-semibold">Gestion complète de vos devis clients</p>
+      <PageHeader title="Devis" subtitle="Gestion complète de vos devis clients" badge="Ventes" icon={FileText}>
+        <button onClick={handleExportCSV} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all" title="Exporter en CSV">
+          <FileDown className="w-5 h-5" />
+          Exporter CSV
+        </button>
+        <Link to="/quotes/new" className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-5 h-5" />
+          Nouveau Devis
+        </Link>
+      </PageHeader>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="relative flex-grow md:flex-grow-0">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un devis..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                    const next = new URLSearchParams(searchParams);
-                    if (e.target.value.trim()) next.set('search', e.target.value); else next.delete('search');
-                    setSearchParams(next, { replace: true });
-                  }}
-                  className="w-full md:w-80 pl-12 pr-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium placeholder-slate-500"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
-              >
-                <option value="all">Tous les statuts</option>
-                <option value="BROUILLON">Brouillon</option>
-                <option value="ENVOYE">Envoyé</option>
-                <option value="ACCEPTE">Accepté</option>
-                <option value="REFUSE">Refusé</option>
-                <option value="EXPIRE">Expiré</option>
-                <option value="CONVERTI">Converti</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleExportCSV}
-                className="btn-secondary py-3 px-6 font-bold shadow-lg shadow-slate-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-                title="Exporter en CSV"
-              >
-                <FileDown className="w-5 h-5" />
-                Exporter CSV
-              </button>
-              <Link
-                to="/quotes/new"
-                className="btn-primary py-3 px-6 font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Nouveau Devis
-              </Link>
-            </div>
+      {/* Filtres */}
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Rechercher un devis..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value.trim()) next.set('search', e.target.value); else next.delete('search');
+                setSearchParams(next, { replace: true });
+              }}
+              className="input-field pl-12"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-5 h-5 text-slate-500 shrink-0" />
+            <select value={filterCompany} onChange={(e) => { setFilterCompany(e.target.value); setCurrentPage(1); }} className="input-field py-2.5 w-auto min-w-[140px]">
+              <option value="">Toutes les sociétés</option>
+              <option value="NETSYSTEME">NETSYSTEME</option>
+              <option value="SSE">SSE</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-6 border-white/40 text-center">
           <p className="text-slate-800 text-sm mb-2 font-bold">Total Devis</p>
           <p className="text-4xl font-black text-primary-600">{quotes.length}</p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Envoyés</p>
-          <p className="text-4xl font-black text-blue-600">
-            {quotes.filter(q => q.status === 'ENVOYE').length}
-          </p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Acceptés</p>
-          <p className="text-4xl font-black text-green-600">
-            {quotes.filter(q => q.status === 'ACCEPTE').length}
-          </p>
         </div>
 
         <div className="glass-card p-6 border-white/40 text-center">
@@ -329,18 +235,16 @@ const Quotes = () => {
               <tr>
                 <th className="table-header"># Devis</th>
                 <th className="table-header">Client</th>
+                <th className="table-header text-center">Société</th>
                 <th className="table-header text-center">Date</th>
                 <th className="table-header text-center">Expiration</th>
                 <th className="table-header text-right">Montant</th>
-                <th className="table-header text-center">Statut</th>
                 <th className="table-header text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
               {currentQuotes.length > 0 ? (
-                currentQuotes.map((quote) => {
-                  const StatusIcon = getStatusIcon(quote.status);
-                  return (
+                currentQuotes.map((quote) => (
                     <tr key={quote.id} className="hover:bg-white/5 transition-colors">
                       <td className="table-cell font-semibold text-slate-800">
                         {quote.quote_number || 'N/A'}
@@ -352,6 +256,9 @@ const Quotes = () => {
                             <div className="text-xs text-slate-500">{quote.client_email}</div>
                           )}
                         </div>
+                      </td>
+                      <td className="table-cell text-center text-slate-700 font-medium">
+                        {quote.company || 'NETSYSTEME'}
                       </td>
                       <td className="table-cell text-center text-slate-700">
                         {formatDate(quote.date)}
@@ -374,12 +281,6 @@ const Quotes = () => {
                         })()} Fcfa
                       </td>
                       <td className="table-cell text-center">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 ${getStatusColor(quote.status)}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {quote.status || 'Inconnu'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleViewQuote(quote)}
@@ -395,7 +296,7 @@ const Quotes = () => {
                           >
                             <Download className="w-5 h-5" />
                           </button>
-                          {quote.status === 'ACCEPTE' && (
+                          {!quote.converted_invoice && (
                             <button
                               onClick={() => setQuoteToConvert(quote)}
                               className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-all"
@@ -407,8 +308,7 @@ const Quotes = () => {
                         </div>
                       </td>
                     </tr>
-                  );
-                })
+                  ))
               ) : (
                 <tr>
                   <td colSpan="7" className="table-cell text-center py-8">
@@ -502,12 +402,6 @@ const Quotes = () => {
                   <p className="text-sm text-slate-500">{selectedQuote.client_phone}</p>
                 )}
               </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Statut</p>
-                <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${getStatusColor(selectedQuote.status)}`}>
-                  {selectedQuote.status}
-                </span>
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -551,48 +445,8 @@ const Quotes = () => {
               </div>
             </div>
 
-            {selectedQuote.notes && (
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Notes</p>
-                <p className="text-slate-600 bg-slate-50 p-3 rounded-lg">{selectedQuote.notes}</p>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-4 border-t">
-              {selectedQuote.status === 'BROUILLON' && (
-                <button
-                  onClick={() => {
-                    handleStatusChange(selectedQuote.id, 'mark_as_sent');
-                    setShowDetailsModal(false);
-                  }}
-                  className="flex-1 btn-primary py-3"
-                >
-                  Marquer comme envoyé
-                </button>
-              )}
-              {selectedQuote.status === 'ENVOYE' && (
-                <>
-                  <button
-                    onClick={() => {
-                      handleStatusChange(selectedQuote.id, 'mark_as_accepted');
-                      setShowDetailsModal(false);
-                    }}
-                    className="flex-1 btn-secondary py-3"
-                  >
-                    Marquer comme accepté
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleStatusChange(selectedQuote.id, 'mark_as_refused');
-                      setShowDetailsModal(false);
-                    }}
-                    className="flex-1 btn-secondary py-3 bg-red-500 hover:bg-red-600"
-                  >
-                    Marquer comme refusé
-                  </button>
-                </>
-              )}
-              {selectedQuote.status === 'ACCEPTE' && (
+            {!selectedQuote.converted_invoice && (
+              <div className="flex gap-2 pt-4 border-t">
                 <button
                   onClick={() => {
                     setShowDetailsModal(false);
@@ -602,8 +456,8 @@ const Quotes = () => {
                 >
                   Convertir en facture
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}

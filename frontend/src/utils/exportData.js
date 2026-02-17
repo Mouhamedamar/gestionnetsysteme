@@ -73,7 +73,6 @@ export const exportInvoicesToCSV = (invoices, filename = 'factures.csv') => {
     { key: 'invoice_number', label: 'Numéro Facture' },
     { key: 'client_name', label: 'Client' },
     { key: 'date', label: 'Date' },
-    { key: 'status', label: 'Statut' },
     { key: 'total_ttc', label: 'Montant TTC (FCFA)' },
     { key: 'is_proforma', label: 'Pro Forma' }
   ];
@@ -157,9 +156,9 @@ export const exportQuotesToCSV = (quotes, filename = 'devis.csv') => {
   const headers = [
     { key: 'quote_number', label: 'Numéro Devis' },
     { key: 'client_name', label: 'Client' },
+    { key: 'company', label: 'Société' },
     { key: 'date', label: 'Date' },
     { key: 'expiration_date', label: 'Date d\'expiration' },
-    { key: 'status', label: 'Statut' },
     { key: 'total_ttc', label: 'Montant TTC (FCFA)' }
   ];
 

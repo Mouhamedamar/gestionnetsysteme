@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatCurrency';
 import { API_BASE_URL } from '../config';
@@ -121,29 +122,20 @@ const Stock = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header Section */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Package className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-              <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Inventaire</span>
-            </div>
-            <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Gestion de Stock</h1>
-            <p className="text-slate-500 font-medium">Surveillez et gérez vos stocks en temps réel.</p>
-          </div>
-          <button 
-            onClick={() => navigate('/stock-movements')}
-            className="btn-primary shadow-xl shadow-primary-500/30 px-8 py-4 text-lg flex items-center gap-2"
-          >
-            <TrendingUp className="w-5 h-5" />
-            Voir les Mouvements
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Gestion de Stock"
+        subtitle="Surveillez et gérez vos stocks en temps réel"
+        badge="Inventaire"
+        icon={Package}
+      >
+        <button
+          onClick={() => navigate('/stock-movements')}
+          className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+        >
+          <TrendingUp className="w-5 h-5" />
+          Voir les Mouvements
+        </button>
+      </PageHeader>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
 import SearchableSelect from '../components/SearchableSelect';
@@ -12,14 +13,15 @@ import { formatCurrency } from '../utils/formatCurrency';
 const CreateInvoice = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { pathname } = useLocation();
   const { clients, products, addInvoice, showNotification, fetchClients, addClient } = useApp();
   
-  // Détecter si c'est une facture pro forma depuis l'URL
-  const isProforma = searchParams.get('proforma') === 'true';
+  // Détecter si c'est une facture pro forma (URL dédiée ou paramètre)
+  const isProforma = searchParams.get('proforma') === 'true' || pathname.includes('proforma-invoices/new');
   
   const [invoiceData, setInvoiceData] = useState({
     client_name: '',
-    status: 'NON_PAYE',
+    company: 'NETSYSTEME',
     is_proforma: isProforma,
     items: []
   });
@@ -121,31 +123,20 @@ const CreateInvoice = () => {
   return (
     <>
       <div className="space-y-8 animate-fade-in pb-12">
-        {/* Header */}
-        <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <FileText className="w-32 h-32 text-primary-600" />
-          </div>
-          <div className="relative z-10">
-            <button
-              onClick={() => navigate('/invoices')}
-              className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors mb-6"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour aux factures
-            </button>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black text-primary-600 mb-2">
-                  Nouvelle Facture
-                </h1>
-                <p className="text-slate-700 text-lg font-semibold">Créer une nouvelle facture client</p>
-                <p className="text-slate-500 text-sm mt-1">Remplissez les informations ci-dessous pour créer une nouvelle facture</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={isProforma ? 'Nouvelle Facture Pro Forma' : 'Nouvelle Facture'}
+          subtitle={isProforma ? 'Créer une nouvelle facture pro forma client' : 'Créer une nouvelle facture client'}
+          badge="Ventes"
+          icon={FileText}
+        >
+          <button
+            onClick={() => navigate(isProforma ? '/proforma-invoices' : '/invoices')}
+            className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            {isProforma ? 'Retour pro forma' : 'Retour factures'}
+          </button>
+        </PageHeader>
 
         {/* Invoice Form */}
         <div className="glass-card p-6 border-white/40">
@@ -177,14 +168,14 @@ const CreateInvoice = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Statut</label>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Société</label>
               <select
-                value={invoiceData.status}
-                onChange={(e) => setInvoiceData({...invoiceData, status: e.target.value})}
+                value={invoiceData.company}
+                onChange={(e) => setInvoiceData({ ...invoiceData, company: e.target.value })}
                 className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
               >
-                <option value="NON_PAYE">Non payé</option>
-                <option value="PAYE">Payé</option>
+                <option value="NETSYSTEME">NETSYSTEME</option>
+                <option value="SSE">SSE</option>
               </select>
             </div>
           </div>
@@ -418,8 +409,6 @@ const CreateInvoice = () => {
               setCreatedInvoice(null);
               navigate('/proforma-invoices');
             }}
-            autoDownload
-            silent
           />
         ) : (
           <InvoicePDF
@@ -428,8 +417,6 @@ const CreateInvoice = () => {
               setCreatedInvoice(null);
               navigate('/invoices');
             }}
-            autoDownload
-            silent
           />
         )
       )}

@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { Link } from 'react-router-dom';
 import { Plus, Search, ArrowDown, ArrowUp, Trash2, TrendingUp, Calendar, Package, Filter, MessageSquare, Hash } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PageHeader from '../components/PageHeader';
 import Loader from '../components/Loader';
 import { useDebounce } from '../hooks/useDebounce';
 
 const StockMovements = () => {
-  const { stockMovements, products, loading, addStockMovement, deleteStockMovement } = useApp();
+  const { stockMovements, products, loading, addStockMovement, deleteStockMovement, fetchProducts, fetchStockMovements } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -23,6 +25,12 @@ const StockMovements = () => {
     date: new Date().toISOString().split('T')[0]
   });
   const itemsPerPage = 10;
+
+  // Charger les produits et mouvements réels à l'affichage de la page
+  useEffect(() => {
+    fetchProducts?.();
+    fetchStockMovements?.();
+  }, [fetchProducts, fetchStockMovements]);
 
   // Debounce de la recherche
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -68,26 +76,24 @@ const StockMovements = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header Section */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <TrendingUp className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-              <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Logistique</span>
-            </div>
-            <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Mouvements de Stock</h1>
-            <p className="text-slate-500 font-medium">Suivez l'historique des entrées et sorties de vos produits.</p>
-          </div>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary shadow-xl shadow-primary-500/30 px-8 py-4 text-lg">
-            <Plus className="w-6 h-6" />
-            Nouveau Mouvement
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Mouvements de Stock"
+        subtitle="Suivez l'historique des entrées et sorties de vos produits"
+        badge="Logistique"
+        icon={TrendingUp}
+      >
+        <Link
+          to="/stock-notifications"
+          className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all"
+        >
+          <MessageSquare className="w-5 h-5" />
+          Config SMS
+        </Link>
+        <button onClick={() => setIsModalOpen(true)} className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-5 h-5" />
+          Nouveau Mouvement
+        </button>
+      </PageHeader>
 
       {/* Filters Section */}
       <div className="card p-8">
@@ -145,8 +151,8 @@ const StockMovements = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {paginatedMovements.map(movement => (
-                <tr key={movement.id} className="hover:bg-slate-50/80 transition-colors group">
+              {paginatedMovements.map((movement, index) => (
+                <tr key={movement.id ?? movement.pk ?? `movement-${index}`} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="table-cell">
                     <div className="flex items-center gap-2 text-slate-500">
                       <Calendar className="w-4 h-4 text-slate-400" />

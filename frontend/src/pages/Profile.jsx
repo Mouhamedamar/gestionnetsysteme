@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import PageHeader from '../components/PageHeader';
 import { User, Mail, Shield, Lock, Eye, EyeOff } from 'lucide-react';
 
 const Profile = () => {
@@ -65,28 +66,25 @@ const Profile = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Mon Profil</h1>
-        <p className="text-gray-600">Informations de votre compte</p>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader title="Mon Profil" subtitle="Informations de votre compte" badge="Compte" icon={User} />
 
-      <div className="card max-w-2xl">
+      <div className="glass-card p-8 shadow-xl border-white/60 max-w-2xl">
         <div className="flex items-center gap-6 mb-8">
           <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center">
             <User className="w-12 h-12 text-primary-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">{user?.username}</h2>
-            <p className="text-gray-600">{user?.role}</p>
+            <h2 className="text-2xl font-bold text-slate-800">{user?.username}</h2>
+            <p className="text-slate-600">{user?.role}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-            <User className="w-5 h-5 text-gray-500" />
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+            <User className="w-5 h-5 text-slate-500" />
             <div className="w-full">
-              <p className="text-sm text-gray-500 mb-1">Nom d'utilisateur</p>
+              <p className="text-sm text-slate-500 mb-1">Nom d'utilisateur</p>
               {isEditing ? (
                 <input
                   type="text"
@@ -102,10 +100,10 @@ const Profile = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-            <Mail className="w-5 h-5 text-gray-500" />
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+            <Mail className="w-5 h-5 text-slate-500" />
             <div className="w-full">
-              <p className="text-sm text-gray-500 mb-1">Email</p>
+              <p className="text-sm text-slate-500 mb-1">Email</p>
               {isEditing ? (
                 <input
                   type="email"
@@ -121,17 +119,17 @@ const Profile = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-            <Shield className="w-5 h-5 text-gray-500" />
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+            <Shield className="w-5 h-5 text-slate-500" />
             <div>
-              <p className="text-sm text-gray-500">Rôle</p>
+              <p className="text-sm text-slate-500">Rôle</p>
               <p className="font-medium">{user?.role}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
             <div>
-              <p className="text-sm text-gray-500">Compte créé le</p>
+              <p className="text-sm text-slate-500">Compte créé le</p>
               <p className="font-medium">
                 {user?.created_at
                   ? new Date(user.created_at).toLocaleDateString('fr-FR')
@@ -141,7 +139,7 @@ const Profile = () => {
           </div>
 
           <div className="mt-4 pt-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-500">
               Les modifications sont sauvegardées sur le serveur.
             </p>
             {isEditing ? (
@@ -183,10 +181,10 @@ const Profile = () => {
           </h3>
 
           <form onSubmit={handlePasswordChange} className="space-y-4">
-            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-              <Lock className="w-5 h-5 text-gray-500" />
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+              <Lock className="w-5 h-5 text-slate-500" />
               <div className="w-full">
-                <p className="text-sm text-gray-500 mb-1">Mot de passe actuel</p>
+                <p className="text-sm text-slate-500 mb-1">Mot de passe actuel</p>
                 <div className="relative">
                   <input
                     type={showPasswords.current ? "text" : "password"}
@@ -206,10 +204,10 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-              <Lock className="w-5 h-5 text-gray-500" />
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+              <Lock className="w-5 h-5 text-slate-500" />
               <div className="w-full">
-                <p className="text-sm text-gray-500 mb-1">Nouveau mot de passe</p>
+                <p className="text-sm text-slate-500 mb-1">Nouveau mot de passe</p>
                 <div className="relative">
                   <input
                     type={showPasswords.new ? "text" : "password"}
@@ -230,10 +228,10 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-              <Lock className="w-5 h-5 text-gray-500" />
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl">
+              <Lock className="w-5 h-5 text-slate-500" />
               <div className="w-full">
-                <p className="text-sm text-gray-500 mb-1">Confirmer le nouveau mot de passe</p>
+                <p className="text-sm text-slate-500 mb-1">Confirmer le nouveau mot de passe</p>
                 <div className="relative">
                   <input
                     type={showPasswords.confirm ? "text" : "password"}

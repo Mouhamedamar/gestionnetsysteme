@@ -6,7 +6,13 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 const DAKAR_CENTER = { lat: 14.7167, lng: -17.4677 };
 
 const mapContainerStyle = { width: '100%', height: '100%' };
-const mapOptions = { disableDefaultUI: false, zoomControl: true, fullscreenControl: true };
+const mapOptions = {
+  disableDefaultUI: false,
+  zoomControl: true,
+  fullscreenControl: true,
+  mapTypeId: 'satellite',
+  mapTypeControl: true,
+};
 
 function zoomForRadius(radiusM) {
   const r = Number(radiusM);
@@ -224,8 +230,8 @@ function OSMZone({ zone, userPosition }) {
       whenReady={() => {}}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.esri.com/">Esri</a> — Satellite'
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
       />
       <MapResizeFix />
       <ZonePerimeterOSM lat={lat} lng={lng} radiusM={radius} />

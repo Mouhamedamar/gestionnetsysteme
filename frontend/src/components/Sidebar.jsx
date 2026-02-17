@@ -8,7 +8,6 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  Box,
   FileCheck,
   Warehouse,
   Wrench,
@@ -16,7 +15,8 @@ import {
   DollarSign,
   Settings,
   MapPin,
-  Clock
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -32,6 +32,7 @@ const Sidebar = () => {
     { path: '/products', label: 'Produits', icon: Package },
     { path: '/stock', label: 'Gestion Stock', icon: Warehouse },
     { path: '/stock-movements', label: 'Mouvements Stock', icon: TrendingUp },
+    { path: '/stock-notifications', label: 'Config SMS Stock', icon: MessageSquare },
     { path: '/interventions', label: 'Interventions', icon: Wrench },
     { path: '/installations', label: 'Installations', icon: Settings },
     { path: '/clients', label: 'Clients', icon: User },
@@ -72,7 +73,7 @@ const Sidebar = () => {
     
     switch (role) {
       case 'admin':
-        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/interventions',
+        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/stock-notifications', '/interventions',
                              '/installations', '/clients', '/quotes', '/invoices',
                              '/proforma-invoices', '/expenses', '/zone-de-travail', '/pointage', '/users'];
         baseMenuItems = adminMenuItems;
@@ -86,7 +87,7 @@ const Sidebar = () => {
         baseMenuItems = commercialMenuItems;
         break;
       default:
-        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/interventions', 
+        defaultPermissions = ['/', '/products', '/stock', '/stock-movements', '/stock-notifications', '/interventions', 
                              '/installations', '/clients', '/quotes', '/invoices', 
                              '/proforma-invoices', '/expenses', '/zone-de-travail', '/users'];
         baseMenuItems = adminMenuItems;
@@ -122,30 +123,32 @@ const Sidebar = () => {
   const menuItems = getMenuItems();
 
   return (
-    <aside className={`relative z-20 h-screen transition-all duration-500 ease-in-out ${collapsed ? 'w-24' : 'w-96'} p-6`}>
+    <aside className={`relative z-20 h-screen transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${collapsed ? 'w-24' : 'w-96'} p-6`}>
       <div className="h-full glass-card flex flex-col border-white/40 shadow-2xl">
         {/* Logo Section */}
-        <div className="p-8 mb-6 flex items-center justify-between flex-shrink-0">
-          {!collapsed && (
-            <div className="flex items-center gap-3 animate-fade-in">
-              <div className="bg-primary-600 p-2 rounded-xl shadow-lg shadow-primary-500/30">
-                <Box className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400 tracking-tight">
-                Max-Immo
-              </h2>
+        <div className="p-6 mb-6 flex items-center justify-center flex-shrink-0">
+          {!collapsed ? (
+            <div className="flex items-center justify-center p-4 rounded-xl bg-primary-50/50 ring-1 ring-primary-200/30">
+              <img
+                src="/logo-netsysteme.png"
+                alt="NETSYSTEME"
+                className="logo-app logo-app-animate h-20 w-auto max-w-full object-contain transition-transform duration-300 hover:scale-110"
+              />
             </div>
-          )}
-          {collapsed && (
-            <div className="bg-primary-600 p-2 rounded-xl shadow-lg shadow-primary-500/30 mx-auto">
-              <Box className="w-6 h-6 text-white" />
+          ) : (
+            <div className="flex items-center justify-center p-2.5 rounded-xl bg-primary-50/50 ring-1 ring-primary-200/30">
+              <img
+                src="/logo-netsysteme.png"
+                alt="NETSYSTEME"
+                className="logo-app logo-app-pulse h-14 w-14 object-contain object-center transition-transform duration-300 hover:scale-110"
+              />
             </div>
           )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-4 space-y-3 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin' }}>
-          {menuItems.map((item) => {
+          {menuItems.map((item, idx) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -153,12 +156,13 @@ const Sidebar = () => {
                 to={item.path}
                 className={({ isActive }) =>
                   `group flex items-center gap-4 p-4 sm:p-5 rounded-2xl transition-all duration-300 min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent ${isActive
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40 translate-x-0.5'
-                    : 'text-slate-600 hover:bg-primary-50 hover:text-primary-600'
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/40 translate-x-1 scale-[1.02]'
+                    : 'text-slate-600 hover:bg-primary-50 hover:text-primary-600 hover:translate-x-1'
                   }`
                 }
+                style={{ animationDelay: `${idx * 30}ms` }}
               >
-                <Icon className="w-6 h-6 transition-transform duration-300 group-hover:scale-105 flex-shrink-0" />
+                <Icon className="w-6 h-6 transition-transform duration-300 group-hover:scale-110 flex-shrink-0" />
                 {!collapsed && <span className="font-semibold tracking-wide truncate flex-1 min-w-0">{item.label}</span>}
               </NavLink>
             );
@@ -169,7 +173,7 @@ const Sidebar = () => {
         <div className="p-6 border-t border-slate-100/50 flex-shrink-0">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center p-4 rounded-xl bg-slate-50 text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-all duration-300"
+            className="w-full flex items-center justify-center p-4 rounded-xl bg-slate-50 text-slate-500 hover:bg-primary-50 hover:text-primary-600 hover:scale-105 active:scale-95 transition-all duration-300"
           >
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { DollarSign, ArrowLeft, Save, X, Upload, Image as ImageIcon } from 'lucide-react';
+import PageHeader from '../components/PageHeader';
 import { API_BASE_URL } from '../config';
 
 const CreateExpense = () => {
@@ -191,35 +192,20 @@ const CreateExpense = () => {
   return (
     <>
       <div className="space-y-8 animate-fade-in pb-12">
-        {/* Header */}
-        <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <DollarSign className="w-32 h-32 text-primary-600" />
-          </div>
-          <div className="relative z-10">
-            <button
-              onClick={() => navigate('/expenses')}
-              className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors mb-6"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour aux dépenses
-            </button>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black text-primary-600 mb-2">
-                  {isEditMode ? 'Modifier la Dépense' : 'Nouvelle Dépense'}
-                </h1>
-                <p className="text-slate-700 text-lg font-semibold">
-                  {isEditMode ? 'Modifier les informations de la dépense' : 'Créer une nouvelle dépense'}
-                </p>
-                <p className="text-slate-500 text-sm mt-1">
-                  Remplissez les informations ci-dessous pour {isEditMode ? 'modifier' : 'créer'} une dépense
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title={isEditMode ? 'Modifier la Dépense' : 'Nouvelle Dépense'}
+          subtitle={isEditMode ? 'Modifier les informations de la dépense' : 'Créer une nouvelle dépense'}
+          badge="Finance"
+          icon={DollarSign}
+        >
+          <button
+            onClick={() => navigate('/expenses')}
+            className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Retour aux dépenses
+          </button>
+        </PageHeader>
 
         {/* Expense Form */}
         <div className="glass-card p-6 border-white/40">

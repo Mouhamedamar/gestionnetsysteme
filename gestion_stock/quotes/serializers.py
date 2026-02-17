@@ -77,8 +77,8 @@ class QuoteSerializer(serializers.ModelSerializer):
             'client_address',
             'total_ht',
             'total_ttc',
-            'status',
-            'notes',
+            'company',
+            'converted_invoice',
             'quote_items',
             'items_count',
             'is_expired',
@@ -90,6 +90,7 @@ class QuoteSerializer(serializers.ModelSerializer):
             'quote_number',
             'total_ht',
             'total_ttc',
+            'converted_invoice',
             'created_at',
             'updated_at',
         ]
@@ -133,8 +134,7 @@ class QuoteCreateSerializer(serializers.ModelSerializer):
             'client_phone',
             'client_address',
             'expiration_date',
-            'status',
-            'notes',
+            'company',
             'items',
         ]
 
@@ -198,6 +198,5 @@ class QuoteUpdateSerializer(serializers.ModelSerializer):
             'client_email',
             'client_phone',
             'client_address',
-            'status',
-            'notes',
+            'company',
         ]

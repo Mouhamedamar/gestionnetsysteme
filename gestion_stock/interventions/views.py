@@ -102,6 +102,28 @@ class InterventionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def perform_create(self, serializer):
+        """Après création : notifier le technicien assigné par email et SMS."""
+        intervention = serializer.save()
+        if intervention.technician_id:
+            try:
+                from .notifications import notify_technician_assignment
+                notify_technician_assignment(intervention, intervention.technician)
+            except Exception as e:
+                logger.warning("Notification assignation (création) non envoyée: %s", e, exc_info=True)
+
+    def perform_update(self, serializer):
+        """Après mise à jour : si le technicien a changé, notifier le nouveau technicien par email et SMS."""
+        old_technician_id = serializer.instance.technician_id if serializer.instance else None
+        intervention = serializer.save()
+        new_technician_id = intervention.technician_id
+        if new_technician_id and new_technician_id != old_technician_id:
+            try:
+                from .notifications import notify_technician_assignment
+                notify_technician_assignment(intervention, intervention.technician)
+            except Exception as e:
+                logger.warning("Notification assignation (mise à jour) non envoyée: %s", e, exc_info=True)
+
     @action(detail=True, methods=['post'])
     def assign_technician(self, request, pk=None):
         """Assigner un technicien à une intervention"""

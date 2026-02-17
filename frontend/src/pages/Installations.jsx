@@ -14,26 +14,29 @@ import {
   XCircle,
   TrendingUp,
   Package,
-  MapPin,
-  Phone,
   Edit,
   Trash2,
-  Eye,
-  Shield,
-  Download
+  Download,
+  DollarSign,
+  Bell
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
+import SearchableSelect from '../components/SearchableSelect';
 import { useDebounce } from '../hooks/useDebounce';
+import { formatCurrency } from '../utils/formatCurrency';
+import { API_BASE_URL } from '../config';
 
 const Installations = () => {
   const navigate = useNavigate();
-  const { clients = [], users = [], products = [], loading, loggedIn, apiCall, showNotification, fetchClients, fetchUsers } = useApp();
+  const { clients = [], users = [], products = [], invoices = [], loading, loggedIn, apiCall, showNotification, fetchClients, fetchUsers, fetchInvoices } = useApp();
   const [installations, setInstallations] = useState([]);
   const [fetching, setFetching] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [technicianFilter, setTechnicianFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -42,6 +45,10 @@ const Installations = () => {
   const [viewingInstallation, setViewingInstallation] = useState(null);
   const [installationToDelete, setInstallationToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [paymentModalInstallation, setPaymentModalInstallation] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const itemsPerPage = 10;
 
@@ -54,10 +61,9 @@ const Installations = () => {
     client_phone: '',
     client_address: '',
     technician: '',
-    status: 'PLANIFIEE',
+    invoice: '',
     scheduled_date: '',
     warranty_period: '',
-    notes: '',
     products: []
   });
 
@@ -76,6 +82,17 @@ const Installations = () => {
   }, [products, productSearchTerm]);
 
   // Filtrer les utilisateurs pour ne garder que les techniciens
+  // Factures (hors pro forma) pour liaison optionnelle
+  const invoiceOptions = useMemo(
+    () => (invoices || [])
+      .filter(inv => !inv.is_proforma)
+      .map(inv => ({
+        value: inv.id,
+        label: `${inv.invoice_number || inv.number || 'N/A'} — ${inv.client_name || inv.client?.name || 'Sans client'}`,
+      })),
+    [invoices]
+  );
+
   const technicians = useMemo(() => {
     if (!users || users.length === 0) return [];
     return users.filter(user => {
@@ -86,10 +103,10 @@ const Installations = () => {
   }, [users]);
 
   // Charger les installations
-  const fetchInstallations = useCallback(async () => {
+  const fetchInstallations = useCallback(async (silent = false) => {
     if (!loggedIn) return;
     try {
-      setFetching(true);
+      if (!silent) setFetching(true);
       const response = await apiCall('/api/installations/', {
         method: 'GET'
       });
@@ -115,10 +132,10 @@ const Installations = () => {
       setInstallations(Array.isArray(apiInstallations) ? apiInstallations : []);
     } catch (error) {
       console.error('Erreur fetchInstallations:', error);
-      showNotification(error.message || 'Erreur lors du chargement des installations', 'error');
+      if (!silent) showNotification(error.message || 'Erreur lors du chargement des installations', 'error');
       setInstallations([]);
     } finally {
-      setFetching(false);
+      if (!silent) setFetching(false);
     }
   }, [loggedIn, apiCall, showNotification]);
 
@@ -127,7 +144,7 @@ const Installations = () => {
     fetchInstallations();
   }, [loggedIn, fetchInstallations]);
 
-  // Charger les clients et utilisateurs si pas déjà chargés
+  // Charger les clients, utilisateurs et factures si pas déjà chargés
   useEffect(() => {
     if (!loggedIn) return;
     if ((!clients || clients.length === 0) && fetchClients) {
@@ -136,7 +153,10 @@ const Installations = () => {
     if ((!users || users.length === 0) && fetchUsers) {
       fetchUsers().catch(console.error);
     }
-  }, [loggedIn, clients?.length, users?.length, fetchClients, fetchUsers]);
+    if ((!invoices || invoices.length === 0) && fetchInvoices) {
+      fetchInvoices().catch(console.error);
+    }
+  }, [loggedIn, clients?.length, users?.length, invoices?.length, fetchClients, fetchUsers, fetchInvoices]);
 
   // Filtrer les installations
   const filteredInstallations = useMemo(() => {
@@ -151,9 +171,18 @@ const Installations = () => {
       );
     }
 
-    // Filtre par statut
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(i => i.status === statusFilter);
+    // Filtre par date d'installation
+    if (dateFrom) {
+      filtered = filtered.filter(i => {
+        const d = i.installation_date || i.scheduled_date || i.created_at;
+        return d && new Date(d) >= new Date(dateFrom);
+      });
+    }
+    if (dateTo) {
+      filtered = filtered.filter(i => {
+        const d = i.installation_date || i.scheduled_date || i.created_at;
+        return d && new Date(d) <= new Date(dateTo + 'T23:59:59');
+      });
     }
 
     // Filtre par type
@@ -161,13 +190,20 @@ const Installations = () => {
       filtered = filtered.filter(i => i.installation_type === typeFilter);
     }
 
-    // Filtre par technicien
+    // Filtre par technicien (technician peut être id ou object selon l'API)
     if (technicianFilter) {
-      filtered = filtered.filter(i => i.technician === parseInt(technicianFilter));
+      const techId = parseInt(technicianFilter, 10);
+      if (!isNaN(techId)) {
+        filtered = filtered.filter(i => {
+          const instTech = i.technician;
+          const id = typeof instTech === 'object' && instTech?.id != null ? instTech.id : instTech;
+          return Number(id) === techId;
+        });
+      }
     }
 
     return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [installations, debouncedSearchTerm, statusFilter, typeFilter, technicianFilter]);
+  }, [installations, debouncedSearchTerm, dateFrom, dateTo, typeFilter, technicianFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredInstallations.length / itemsPerPage);
@@ -176,7 +212,7 @@ const Installations = () => {
     currentPage * itemsPerPage
   );
 
-  // Obtenir le statut avec icône et couleur
+  // Obtenir le statut avec icône et couleur (pour export CSV et modal détail)
   const getStatusInfo = (status) => {
     switch (status) {
       case 'PLANIFIEE':
@@ -188,9 +224,30 @@ const Installations = () => {
       case 'ANNULEE':
         return { label: 'Annulée', color: 'rose', icon: XCircle };
       default:
-        return { label: status, color: 'slate', icon: AlertCircle };
+        return { label: status || '—', color: 'slate', icon: AlertCircle };
     }
   };
+
+  // Libellé méthode de paiement
+  const getPaymentMethodLabel = (method) => {
+    if (!method) return '—';
+    const labels = {
+      ESPECE: 'Espèce (Comptant)',
+      '1_TRANCHE': '1 tranche',
+      '2_TRANCHES': '2 tranches',
+      '3_TRANCHES': '3 tranches',
+      '4_TRANCHES': '4 tranches',
+    };
+    return labels[method] || method;
+  };
+
+  // KPIs tableau de bord
+  const totalInstallationsAmount = useMemo(() => {
+    return (filteredInstallations || []).reduce((sum, i) => sum + (parseFloat(i.total_amount) || 0), 0);
+  }, [filteredInstallations]);
+  const totalReliquats = useMemo(() => {
+    return (filteredInstallations || []).reduce((sum, i) => sum + (parseFloat(i.remaining_amount) || 0), 0);
+  }, [filteredInstallations]);
 
   // Obtenir le type avec couleur
   const getTypeColor = (type) => {
@@ -221,10 +278,9 @@ const Installations = () => {
       client_phone: '',
       client_address: '',
       technician: '',
-      status: 'PLANIFIEE',
+      invoice: '',
       scheduled_date: '',
       warranty_period: '',
-      notes: '',
       products: []
     });
     setIsModalOpen(true);
@@ -243,10 +299,9 @@ const Installations = () => {
       client_phone: installation.client_phone || '',
       client_address: installation.client_address || '',
       technician: installation.technician || '',
-      status: installation.status || 'PLANIFIEE',
+      invoice: installation.invoice || '',
       scheduled_date: installation.scheduled_date ? installation.scheduled_date.split('T')[0] + 'T' + installation.scheduled_date.split('T')[1]?.slice(0, 5) : '',
       warranty_period: installation.warranty_period || '',
-      notes: installation.notes || '',
       products: (installation.products_used || []).map(p => ({
         product: p.product,
         quantity: p.quantity,
@@ -311,6 +366,7 @@ const Installations = () => {
         client_name: clientName || formData.client_name,
         client: formData.client || null,
         technician: formData.technician || null,
+        invoice: formData.invoice || null,
         scheduled_date: formData.scheduled_date || null,
         warranty_period: formData.warranty_period ? parseInt(formData.warranty_period) : null,
         products: formData.products.filter(p => p.product)
@@ -372,6 +428,102 @@ const Installations = () => {
     }
   };
 
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentModalInstallation) return;
+    const amount = parseFloat(String(paymentAmount).replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showNotification('Montant invalide', 'error');
+      return;
+    }
+    const total = parseFloat(paymentModalInstallation.total_amount) || 0;
+    const advance = parseFloat(paymentModalInstallation.advance_amount) || 0;
+    const remaining = (paymentModalInstallation.remaining_amount != null && paymentModalInstallation.remaining_amount !== '')
+      ? parseFloat(paymentModalInstallation.remaining_amount)
+      : Math.max(0, total - advance);
+    const tolerance = 1;
+    if (amount > remaining + tolerance) {
+      showNotification(`Le montant ne peut pas dépasser le restant (${formatCurrency(remaining)} F)`, 'error');
+      return;
+    }
+    const targetId = paymentModalInstallation.id;
+    const newAdvance = advance + amount;
+    const newRemaining = Math.max(0, remaining - amount);
+    try {
+      setSubmittingPayment(true);
+      const response = await apiCall(`/api/installations/${targetId}/record-payment/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amount,
+          payment_date: paymentDate || new Date().toISOString().slice(0, 10)
+        })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || data.detail || 'Erreur lors du versement');
+      }
+      const updatedData = await response.json().catch(() => null);
+      setInstallations(prev => prev.map(inst => {
+        if (String(inst.id) !== String(targetId)) return inst;
+        const merged = (updatedData && updatedData.id != null)
+          ? { ...inst, ...updatedData }
+          : { ...inst, advance_amount: newAdvance, remaining_amount: newRemaining };
+        return merged;
+      }));
+      showNotification('Versement enregistré avec succès');
+      setPaymentModalInstallation(null);
+      setPaymentAmount('');
+      setPaymentDate(new Date().toISOString().slice(0, 10));
+      fetchInstallations(true);
+    } catch (err) {
+      showNotification(err.message || 'Erreur lors du versement', 'error');
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
+
+  const openPaymentModal = (installation) => {
+    setPaymentModalInstallation(installation);
+    setPaymentAmount('');
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+  };
+
+  const getContractUrl = (contractFile, contractFileUrl) => {
+    if (contractFileUrl) return contractFileUrl;
+    if (!contractFile) return null;
+    if (contractFile.startsWith('http')) return contractFile;
+    if (contractFile.startsWith('/')) return `${API_BASE_URL}${contractFile}`;
+    return `${API_BASE_URL}/media/${contractFile}`;
+  };
+
+  const handleDownloadContract = async (installation) => {
+    const url = getContractUrl(installation?.contract_file, installation?.contract_file_url);
+    if (!url) return;
+    const path = installation.contract_file || '';
+    const suggestedName = path.split('/').pop() || `contrat_${installation.installation_number || installation.id}.pdf`;
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error('Téléchargement impossible');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = suggestedName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      showNotification('Contrat téléchargé');
+    } catch (err) {
+      showNotification(err.message || 'Erreur lors du téléchargement', 'error');
+    }
+  };
+
   // Changer le statut
   const handleChangeStatus = async (installationId, newStatus) => {
     try {
@@ -418,68 +570,84 @@ const Installations = () => {
   if (loading || fetching) return <Loader />;
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header Section */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Settings className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-              <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Technique</span>
+    <div className="space-y-8 animate-fade-in pb-16 px-2 sm:px-0">
+      <PageHeader title="Gestion des installations" subtitle="Suivi des installations et des paiements" badge="Services" icon={Package}>
+        <button type="button" onClick={() => navigate('/installations/rappels-paiement')} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all">
+          <Bell className="w-4 h-4" />
+          Rappels SMS
+        </button>
+        <button type="button" onClick={handleDownloadCSV} disabled={filteredInstallations.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          <Download className="w-4 h-4" />
+          CSV
+        </button>
+        <button type="button" onClick={() => navigate('/installations/add')} className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-4 h-4" />
+          Nouvelle installation
+        </button>
+      </PageHeader>
+
+      {/* Filtres date + KPIs */}
+      <div className="glass-card p-6 sm:p-8 shadow-xl border-white/60">
+        <div className="flex flex-wrap items-end gap-5 mb-8">
+            <div className="flex flex-wrap items-center gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-2">Date du</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="input-field w-40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-2">Au</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="input-field w-40"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="btn-secondary px-4 py-2.5 mt-5"
+              >
+                Réinitialiser
+              </button>
             </div>
-            <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Installations</h1>
-            <p className="text-slate-500 font-medium">Gérez les installations techniques effectuées par les techniciens.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleDownloadCSV}
-              disabled={filteredInstallations.length === 0}
-              className="btn-secondary px-6 py-4 text-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-5 h-5" />
-              Télécharger (CSV)
-            </button>
-            <button 
-              onClick={handleAddInstallation}
-              className="btn-primary shadow-xl shadow-primary-500/30 px-8 py-4 text-lg flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Nouvelle Installation
-            </button>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-slate-50 border border-blue-100/80 p-6 shadow-sm">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <p className="text-sm font-semibold text-blue-600 mb-1">Total Installations</p>
+            <p className="text-2xl font-black text-blue-900">{formatCurrency(totalInstallationsAmount)} <span className="text-blue-600 font-bold text-lg">F</span></p>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 to-amber-50/50 border border-red-100/80 p-6 shadow-sm flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-700 mb-1">Total Reliquats</p>
+              <p className="text-2xl font-black text-red-900">{formatCurrency(totalReliquats)} <span className="text-red-600 font-bold text-lg">F</span></p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="card p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative group">
+      {/* Filtres supplémentaires */}
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+          <div className="relative group md:col-span-2 md:max-w-sm">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-primary-500 transition-colors" />
             <input
               type="text"
-              placeholder="Rechercher..."
+              placeholder="Rechercher client, numéro..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-field pl-12"
             />
-          </div>
-          <div className="relative">
-            <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input-field pl-12 appearance-none"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="PLANIFIEE">Planifiée</option>
-              <option value="EN_COURS">En cours</option>
-              <option value="TERMINEE">Terminée</option>
-              <option value="ANNULEE">Annulée</option>
-            </select>
           </div>
           <div className="relative">
             <Package className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -516,109 +684,130 @@ const Installations = () => {
         </div>
       </div>
 
-      {/* Installations Table */}
-      <div className="card p-0 overflow-hidden border-none shadow-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+      {/* Tableau des installations */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-5 sm:px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
+          <span className="text-sm font-medium text-slate-600">Afficher <strong className="text-slate-800">{itemsPerPage}</strong> entrées</span>
+        </div>
+        <div className="overflow-x-auto rounded-b-2xl">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr>
-                <th className="table-header">Numéro</th>
-                <th className="table-header">Titre</th>
-                <th className="table-header">Type</th>
+                <th className="table-header">Date installation</th>
                 <th className="table-header">Client</th>
-                <th className="table-header">Technicien</th>
-                <th className="table-header text-center">Statut</th>
-                <th className="table-header">Date prévue</th>
+                <th className="table-header">Agent commercial</th>
+                <th className="table-header">Techniciens</th>
+                <th className="table-header text-right">Montant total</th>
+                <th className="table-header text-right">Avance</th>
+                <th className="table-header text-right">Restant</th>
+                <th className="table-header text-center">Statut paiement</th>
+                <th className="table-header">Méthode</th>
+                <th className="table-header">Contrat</th>
                 <th className="table-header text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {paginatedInstallations.map(installation => {
-                const statusInfo = getStatusInfo(installation.status);
-                const StatusIcon = statusInfo.icon;
+                const installDate = installation.installation_date || installation.scheduled_date || installation.created_at;
+                const techniciansNames = (installation.technicians_list || []).map(t =>
+                  (t.first_name || t.last_name) ? `${t.first_name || ''} ${t.last_name || ''}`.trim() : (t.username || '')
+                ).filter(Boolean);
+                const detail = installation.commercial_agent_detail;
+                const agentName = installation.commercial_agent_name ||
+                  (detail ? ((detail.first_name || detail.last_name) ? `${detail.first_name || ''} ${detail.last_name || ''}`.trim() : detail.username) : null) || '—';
+                const singleTechnician = installation.technician_detail
+                  ? (installation.technician_detail.first_name || installation.technician_detail.last_name
+                      ? `${installation.technician_detail.first_name} ${installation.technician_detail.last_name}`.trim()
+                      : installation.technician_detail.username)
+                  : null;
+                const techDisplay = techniciansNames.length > 0 ? techniciansNames.join(', ') : (singleTechnician || '—');
+                const totalAmt = Number(installation.total_amount) || 0;
+                const advanceAmt = Number(installation.advance_amount) || 0;
+                const remainingAmt = (installation.remaining_amount != null && String(installation.remaining_amount).trim() !== '')
+                  ? (Number(installation.remaining_amount) || 0)
+                  : Math.max(0, totalAmt - advanceAmt);
+                const isPaid = totalAmt <= 0 || remainingAmt <= 0 || (totalAmt > 0 && advanceAmt >= totalAmt);
+                const paymentStatusLabel = isPaid ? 'Payé' : 'Restant';
+                const paymentStatusClass = isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800';
 
                 return (
-                  <tr key={installation.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="table-cell font-mono text-sm font-bold text-primary-600">
-                      {installation.installation_number}
+                  <tr key={installation.id} className="hover:bg-primary-50/40 transition-colors duration-150 group border-b border-slate-100/80 last:border-0">
+                    <td className="table-cell text-slate-600 whitespace-nowrap">
+                      {installDate ? new Date(installDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                     </td>
-                    <td className="table-cell font-bold text-slate-700">{installation.title}</td>
-                    <td className="table-cell">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold border ${getTypeColor(installation.installation_type)}`}>
-                        {installation.installation_type_display || installation.installation_type}
-                      </span>
+                    <td className="table-cell font-semibold text-slate-700">
+                      {installation.client_name || installation.client_detail?.name || 'N/A'}
                     </td>
-                    <td className="table-cell">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-700">{installation.client_name || installation.client_detail?.name || 'N/A'}</span>
-                        {installation.client_phone && (
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {installation.client_phone}
-                          </span>
-                        )}
-                      </div>
+                    <td className="table-cell text-slate-600">
+                      {agentName || '—'}
                     </td>
-                    <td className="table-cell">
-                      {installation.technician_detail ? (
-                        <span className="text-slate-600">
-                          {installation.technician_detail.first_name || installation.technician_detail.last_name
-                            ? `${installation.technician_detail.first_name} ${installation.technician_detail.last_name}`.trim()
-                            : installation.technician_detail.username}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 italic">Non assigné</span>
-                      )}
+                    <td className="table-cell text-slate-600 text-sm">
+                      {techDisplay}
+                    </td>
+                    <td className="table-cell text-right font-semibold text-slate-800">
+                      {formatCurrency(installation.total_amount)}
+                    </td>
+                    <td className="table-cell text-right text-slate-600">
+                      {formatCurrency(installation.advance_amount)}
+                    </td>
+                    <td className="table-cell text-right font-medium text-slate-700">
+                      {formatCurrency(remainingAmt)}
                     </td>
                     <td className="table-cell text-center">
-                      <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase ${
-                        statusInfo.color === 'amber' ? 'bg-amber-100 text-amber-700' :
-                        statusInfo.color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                        statusInfo.color === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {statusInfo.label}
+                      <span className={`inline-flex px-2 py-1 rounded-md text-xs font-semibold ${paymentStatusClass}`}>
+                        {paymentStatusLabel}
                       </span>
                     </td>
+                    <td className="table-cell text-slate-600">
+                      {getPaymentMethodLabel(installation.payment_method) || installation.payment_method_display || '—'}
+                    </td>
                     <td className="table-cell">
-                      {installation.scheduled_date ? (
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <Calendar className="w-4 h-4 text-slate-400" />
-                          {new Date(installation.scheduled_date).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                      {(installation.contract_file || installation.contract_file_url) ? (
+                        <div className="flex items-center gap-3">
+                          <a
+                            href={getContractUrl(installation.contract_file, installation.contract_file_url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:underline font-medium"
+                          >
+                            Voir
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadContract(installation)}
+                            className="inline-flex items-center gap-1 text-slate-600 hover:text-primary-600 font-medium text-sm"
+                            title="Télécharger le contrat (PDF)"
+                          >
+                            <Download className="w-4 h-4" />
+                            Télécharger
+                          </button>
                         </div>
                       ) : (
-                        <span className="text-slate-300 italic">Non planifiée</span>
+                        <span className="text-slate-400">—</span>
                       )}
                     </td>
                     <td className="table-cell">
-                      <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => setViewingInstallation(installation)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                          title="Voir détails"
+                          onClick={() => openPaymentModal(installation)}
+                          className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          title="Nouveau versement"
                         >
-                          <Eye className="w-5 h-5" />
+                          <DollarSign className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEditInstallation(installation)}
-                          className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
+                          className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
                           title="Modifier"
                         >
-                          <Edit className="w-5 h-5" />
+                          <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setInstallationToDelete(installation)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                           title="Supprimer"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -631,34 +820,42 @@ const Installations = () => {
       </div>
 
       {paginatedInstallations.length === 0 && (
-        <div className="card p-20 text-center">
-          <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Search className="w-10 h-10 text-slate-300" />
+        <div className="card p-16 text-center">
+          <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center mx-auto mb-6 border border-slate-100">
+            <Search className="w-12 h-12 text-slate-400" />
           </div>
           <h3 className="text-2xl font-black text-slate-800 mb-2">Aucune installation trouvée</h3>
-          <p className="text-slate-500 font-medium">Essayez de modifier vos critères de recherche ou créez une nouvelle installation.</p>
+          <p className="text-slate-500 font-medium max-w-md mx-auto mb-6">Modifiez les filtres ou créez une nouvelle installation pour commencer.</p>
+          <button
+            type="button"
+            onClick={() => navigate('/installations/add')}
+            className="btn-primary inline-flex"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvelle installation
+          </button>
         </div>
       )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 mt-8">
+        <div className="flex items-center justify-center gap-2 mt-8">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="btn-secondary px-8 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="btn-secondary px-5 py-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed text-sm"
           >
             Précédent
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {[...Array(totalPages)].map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrentPage(i + 1)}
-                className={`w-10 h-10 rounded-xl font-bold transition-all ${
+                className={`min-w-[2.5rem] h-10 px-3 rounded-xl font-semibold text-sm transition-all ${
                   currentPage === i + 1
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
-                    : 'bg-white text-slate-500 hover:bg-slate-50'
+                    ? 'bg-primary-600 text-white shadow-md shadow-primary-500/25'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
                 {i + 1}
@@ -668,7 +865,7 @@ const Installations = () => {
           <button
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="btn-secondary px-8 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="btn-secondary px-5 py-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed text-sm"
           >
             Suivant
           </button>
@@ -682,9 +879,9 @@ const Installations = () => {
         title={editingInstallation ? 'Modifier l\'installation' : 'Nouvelle Installation'}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Titre <span className="text-rose-500">*</span>
               </label>
@@ -696,7 +893,7 @@ const Installations = () => {
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Type d'installation
               </label>
@@ -714,7 +911,7 @@ const Installations = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
               Description <span className="text-slate-400 font-normal text-xs">(optionnel)</span>
             </label>
@@ -726,8 +923,8 @@ const Installations = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Client
               </label>
@@ -756,7 +953,7 @@ const Installations = () => {
                 )}
               </select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Technicien
               </label>
@@ -779,7 +976,7 @@ const Installations = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
               Nom du client
             </label>
@@ -791,8 +988,8 @@ const Installations = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Téléphone
               </label>
@@ -803,7 +1000,7 @@ const Installations = () => {
                 className="input-field"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Date prévue
               </label>
@@ -816,7 +1013,7 @@ const Installations = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
               Adresse d'installation
             </label>
@@ -827,39 +1024,59 @@ const Installations = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Statut
+          <div className="space-y-3">
+            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+              Garantie (mois)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={formData.warranty_period}
+              onChange={(e) => setFormData({ ...formData, warranty_period: e.target.value })}
+              className="input-field"
+              placeholder="Ex: 12"
+            />
+          </div>
+
+          {/* Facture (optionnel) */}
+          <div className="space-y-4 p-5 rounded-xl bg-slate-50 border border-slate-200">
+            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
+              Facture (optionnel)
+            </label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="invoice_choice"
+                  checked={!formData.invoice}
+                  onChange={() => setFormData({ ...formData, invoice: '' })}
+                />
+                <span>Aucune facture</span>
               </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="input-field appearance-none"
-              >
-                <option value="PLANIFIEE">Planifiée</option>
-                <option value="EN_COURS">En cours</option>
-                <option value="TERMINEE">Terminée</option>
-                <option value="ANNULEE">Annulée</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-                Garantie (mois)
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="invoice_choice"
+                  checked={!!formData.invoice}
+                  onChange={() => setFormData({ ...formData, invoice: formData.invoice || (invoiceOptions[0]?.value ?? '') })}
+                />
+                <span>Lier une facture</span>
               </label>
-              <input
-                type="number"
-                min="0"
-                value={formData.warranty_period}
-                onChange={(e) => setFormData({ ...formData, warranty_period: e.target.value })}
-                className="input-field"
-                placeholder="Ex: 12"
-              />
             </div>
+            {formData.invoice && (
+              <div className="mt-3">
+                <SearchableSelect
+                  options={invoiceOptions}
+                  value={formData.invoice}
+                  onChange={id => setFormData({ ...formData, invoice: id })}
+                  placeholder="Choisir une facture..."
+                />
+              </div>
+            )}
           </div>
 
           {/* Produits utilisés */}
-          <div className="space-y-4 border-t pt-4">
+          <div className="space-y-5 border-t border-slate-200 pt-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
                 Produits utilisés
@@ -927,17 +1144,6 @@ const Installations = () => {
             ))}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-black text-slate-700 uppercase tracking-wider">
-              Notes techniques
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="input-field min-h-[80px]"
-            />
-          </div>
-
           <div className="flex gap-4 pt-4 border-t">
             <button
               type="button"
@@ -957,137 +1163,130 @@ const Installations = () => {
         </form>
       </Modal>
 
-      {/* View Details Modal */}
+      {/* Modal Nouveau versement */}
       <Modal
-        isOpen={!!viewingInstallation}
-        onClose={() => setViewingInstallation(null)}
-        title={`Installation ${viewingInstallation?.installation_number}`}
-        size="lg"
+        isOpen={!!paymentModalInstallation}
+        onClose={() => { setPaymentModalInstallation(null); setPaymentAmount(''); }}
+        title="Nouveau versement"
+        size="md"
       >
-        {viewingInstallation && (
+        {paymentModalInstallation && (() => {
+          const total = Number(paymentModalInstallation.total_amount) || 0;
+          const advance = Number(paymentModalInstallation.advance_amount) || 0;
+          const remaining = (paymentModalInstallation.remaining_amount != null && String(paymentModalInstallation.remaining_amount).trim() !== '')
+            ? (Number(paymentModalInstallation.remaining_amount) || 0)
+            : Math.max(0, total - advance);
+          const amountToPay = parseFloat(String(paymentAmount).replace(/\s/g, '').replace(',', '.')) || 0;
+          const newRemainingAfter = Math.max(0, remaining - amountToPay);
+          const newAdvanceAfter = advance + amountToPay;
+          return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Titre</label>
-                <p className="text-slate-800 font-bold mt-1">{viewingInstallation.title}</p>
+            <p className="text-slate-500 text-sm">
+              {paymentModalInstallation.client_name || 'Client'} — {paymentModalInstallation.installation_number}
+            </p>
+
+            <div className="grid gap-3">
+              <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-600 font-medium">Montant total (FCFA)</span>
+                <span className="font-bold text-slate-800">{formatCurrency(total)}</span>
               </div>
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Type</label>
-                <p className="text-slate-800 font-bold mt-1">{viewingInstallation.installation_type_display || viewingInstallation.installation_type}</p>
+              <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="text-slate-600 font-medium">Montant déjà payé (FCFA)</span>
+                <span className="font-bold text-slate-800">{formatCurrency(advance)}</span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <span className="text-amber-800 font-medium">Montant restant à payer (FCFA)</span>
+                <span className="font-bold text-amber-900">{formatCurrency(remaining)}</span>
               </div>
             </div>
-            <div>
-              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Description</label>
-              <p className="text-slate-700 mt-1">{viewingInstallation.description}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <form onSubmit={handleSubmitPayment} className="space-y-4">
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Client</label>
-                <p className="text-slate-800 font-bold mt-1">{viewingInstallation.client_name || viewingInstallation.client_detail?.name || 'N/A'}</p>
-                {viewingInstallation.client_phone && (
-                  <p className="text-slate-500 text-sm mt-1 flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
-                    {viewingInstallation.client_phone}
-                  </p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Montant à verser (FCFA) <span className="text-rose-500">*</span>
+                  </label>
+                  {remaining > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentAmount(String(Math.round(remaining)))}
+                      className="text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline"
+                    >
+                      Verser tout le restant ({formatCurrency(remaining)})
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={`Ex: ${formatCurrency(remaining)}`}
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value.replace(/[^0-9,.\s]/g, ''))}
+                  className="input-field w-full text-lg font-semibold"
+                  autoFocus
+                />
+                {amountToPay > 0 && (
+                  <>
+                    {amountToPay > remaining + 1 ? (
+                      <div className="mt-2 p-3 bg-rose-50 rounded-lg border border-rose-200 text-sm">
+                        <span className="text-rose-800 font-medium">Le montant dépasse le restant ({formatCurrency(remaining)} F). Réduisez le montant.</span>
+                      </div>
+                    ) : (
+                      <div className="mt-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-sm">
+                        <span className="text-emerald-800 font-medium">Après ce versement : </span>
+                        <span className="text-emerald-900 font-bold">Payé = {formatCurrency(newAdvanceAfter)} F</span>
+                        <span className="text-emerald-700"> · </span>
+                        <span className="text-emerald-900 font-bold">Restant = {formatCurrency(newRemainingAfter)} F</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Technicien</label>
-                <p className="text-slate-800 font-bold mt-1">
-                  {viewingInstallation.technician_detail
-                    ? (viewingInstallation.technician_detail.first_name || viewingInstallation.technician_detail.last_name
-                        ? `${viewingInstallation.technician_detail.first_name} ${viewingInstallation.technician_detail.last_name}`.trim()
-                        : viewingInstallation.technician_detail.username)
-                    : 'Non assigné'}
-                </p>
-              </div>
-            </div>
-            {viewingInstallation.client_address && (
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Adresse</label>
-                <p className="text-slate-700 mt-1 flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
-                  {viewingInstallation.client_address}
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Statut</label>
-                <div className="mt-1">
-                  {(() => {
-                    const statusInfo = getStatusInfo(viewingInstallation.status);
-                    const StatusIcon = statusInfo.icon;
-                    return (
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold ${
-                        statusInfo.color === 'amber' ? 'bg-amber-100 text-amber-700' :
-                        statusInfo.color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                        statusInfo.color === 'emerald' ? 'bg-emerald-100 text-emerald-700' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {statusInfo.label}
-                      </span>
-                    );
-                  })()}
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Date du versement <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="input-field w-full pl-12"
+                    required
+                  />
                 </div>
               </div>
-              {viewingInstallation.scheduled_date && (
-                <div>
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Date prévue</label>
-                  <p className="text-slate-700 mt-1 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(viewingInstallation.scheduled_date).toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              )}
-              {viewingInstallation.warranty_period && (
-                <div>
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Garantie</label>
-                  <p className="text-slate-700 mt-1 flex items-center gap-1">
-                    <Shield className="w-3 h-3" />
-                    {viewingInstallation.warranty_period} mois
-                    {viewingInstallation.warranty_end_date && (
-                      <span className="text-xs text-slate-500">
-                        (jusqu'au {new Date(viewingInstallation.warranty_end_date).toLocaleDateString('fr-FR')})
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-            </div>
-            {viewingInstallation.products_used && viewingInstallation.products_used.length > 0 && (
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Produits utilisés</label>
-                <div className="mt-2 space-y-2">
-                  {viewingInstallation.products_used.map((product, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold text-slate-800">{product.product_detail?.name || product.product_name || 'N/A'}</p>
-                        {product.serial_number && (
-                          <p className="text-xs text-slate-500">N° série: {product.serial_number}</p>
-                        )}
-                      </div>
-                      <span className="font-bold text-primary-600">x{product.quantity}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setPaymentModalInstallation(null); setPaymentAmount(''); }}
+                  className="btn-secondary flex-1"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPayment || !paymentAmount || amountToPay <= 0 || amountToPay > remaining + 1}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingPayment ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Enregistrement…
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="w-4 h-4" />
+                      Valider le versement
+                    </>
+                  )}
+                </button>
               </div>
-            )}
-            {viewingInstallation.notes && (
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Notes</label>
-                <p className="text-slate-700 mt-1">{viewingInstallation.notes}</p>
-              </div>
-            )}
+            </form>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* Delete Confirmation Modal */}

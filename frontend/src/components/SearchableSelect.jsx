@@ -13,6 +13,7 @@ const SearchableSelect = ({
   onChange,
   placeholder = 'Rechercher ou sélectionner…',
   className = '',
+  listClassName = '',
   disabled = false,
   required = false,
   'data-testid': dataTestId,
@@ -110,11 +111,11 @@ const SearchableSelect = ({
 
       {open && (
         <ul
-          className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg py-1"
+          className={`absolute z-50 left-0 right-0 mt-2 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white shadow-xl py-2 ${listClassName}`}
           role="listbox"
         >
           {filteredOptions.length === 0 ? (
-            <li className="px-4 py-3 text-slate-500 text-sm">Aucun résultat</li>
+            <li className="px-4 py-4 text-slate-500 text-sm">Aucun résultat</li>
           ) : (
             filteredOptions.map((option) => (
               <li
@@ -122,10 +123,10 @@ const SearchableSelect = ({
                 role="option"
                 aria-selected={String(option.value) === String(value)}
                 onMouseDown={(e) => handleOptionMouseDown(e, option)}
-                className={`px-4 py-2.5 cursor-pointer text-sm font-medium transition-colors ${
+                className={`px-4 py-3 cursor-pointer text-sm font-medium transition-colors border-b border-slate-100 last:border-b-0 ${
                   String(option.value) === String(value)
                     ? 'bg-primary-100 text-primary-800'
-                    : 'text-slate-700 hover:bg-slate-100'
+                    : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 {typeof option.label === 'string' || typeof option.label === 'number' ? option.label : String(option.label ?? '')}

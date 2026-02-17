@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import PageHeader from '../components/PageHeader';
 import { DollarSign, Plus, Search, Eye, Edit, Trash2, CheckCircle, XCircle, Filter, Image as ImageIcon, Download, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -293,91 +294,52 @@ const Expenses = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <DollarSign className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <h1 className="text-4xl font-black text-primary-600 mb-2">Dépenses</h1>
-          <p className="text-slate-800 text-lg mb-6 font-semibold">Gestion complète de vos dépenses</p>
+      <PageHeader title="Dépenses" subtitle="Gestion complète de vos dépenses" badge="Finance" icon={DollarSign}>
+        <button type="button" onClick={handleExportCSV} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter CSV">
+          <Download className="w-5 h-5" />
+          CSV
+        </button>
+        <button type="button" onClick={handleExportPDF} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter PDF">
+          <FileDown className="w-5 h-5" />
+          PDF
+        </button>
+        <Link to="/expenses/new" className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-5 h-5" />
+          Nouvelle Dépense
+        </Link>
+      </PageHeader>
 
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="relative flex-grow md:flex-grow-0">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="text"
-                  placeholder="Rechercher une dépense..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full md:w-80 pl-12 pr-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium placeholder-slate-500"
-                />
-              </div>
-              <select
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
-              >
-                <option value="all">Toutes les catégories</option>
-                <option value="FOURNITURE">Fourniture</option>
-                <option value="TRANSPORT">Transport</option>
-                <option value="SALAIRE">Salaire</option>
-                <option value="LOYER">Loyer</option>
-                <option value="UTILITAIRE">Utilitaires</option>
-                <option value="MARKETING">Marketing</option>
-                <option value="MAINTENANCE">Maintenance</option>
-                <option value="AUTRE">Autre</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
-              >
-                <option value="all">Tous les statuts</option>
-                <option value="PAYE">Payé</option>
-                <option value="NON_PAYE">Non payé</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                disabled={!expenses || expenses.length === 0}
-                className="btn-secondary py-3 px-6 font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Télécharger les dépenses affichées en fichier CSV (Excel)"
-              >
-                <Download className="w-5 h-5" />
-                Télécharger les dépenses (CSV)
-              </button>
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={!expenses || expenses.length === 0}
-                className="btn-secondary py-3 px-6 font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Télécharger les dépenses affichées en PDF"
-              >
-                <FileDown className="w-5 h-5" />
-                Télécharger les dépenses (PDF)
-              </button>
-              <Link
-                to="/expenses/new"
-                className="btn-primary py-3 px-6 font-bold shadow-lg shadow-primary-500/20 transition-all hover:shadow-xl flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Nouvelle Dépense
-              </Link>
-            </div>
+      {/* Filtres */}
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Rechercher une dépense..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              className="input-field pl-12"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-5 h-5 text-slate-500 shrink-0" />
+            <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }} className="input-field py-2.5 w-auto min-w-[160px]">
+              <option value="all">Toutes les catégories</option>
+              <option value="FOURNITURE">Fourniture</option>
+              <option value="TRANSPORT">Transport</option>
+              <option value="SALAIRE">Salaire</option>
+              <option value="LOYER">Loyer</option>
+              <option value="UTILITAIRE">Utilitaires</option>
+              <option value="MARKETING">Marketing</option>
+              <option value="MAINTENANCE">Maintenance</option>
+              <option value="AUTRE">Autre</option>
+            </select>
+            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} className="input-field py-2.5 w-auto min-w-[120px]">
+              <option value="all">Tous les statuts</option>
+              <option value="PAYE">Payé</option>
+              <option value="NON_PAYE">Non payé</option>
+            </select>
           </div>
         </div>
       </div>
@@ -472,7 +434,7 @@ const Expenses = () => {
                             ? parseFloat(expense.amount) || 0 
                             : Number(expense.amount) || 0;
                           return formatCurrency(amount);
-                        })} Fcfa
+                        })()} Fcfa
                       </td>
                       <td className="table-cell text-center">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 ${getStatusColor(expense.status)}`}>

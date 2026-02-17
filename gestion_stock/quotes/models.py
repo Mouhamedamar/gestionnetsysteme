@@ -11,13 +11,9 @@ class Quote(models.Model):
     """
     Modèle pour les devis
     """
-    STATUS_CHOICES = [
-        ('BROUILLON', 'Brouillon'),
-        ('ENVOYE', 'Envoyé'),
-        ('ACCEPTE', 'Accepté'),
-        ('REFUSE', 'Refusé'),
-        ('EXPIRE', 'Expiré'),
-        ('CONVERTI', 'Converti en facture'),
+    COMPANY_CHOICES = [
+        ('NETSYSTEME', 'NETSYSTEME'),
+        ('SSE', 'SSE'),
     ]
 
     quote_number = models.CharField(
@@ -75,16 +71,19 @@ class Quote(models.Model):
         validators=[MinValueValidator(0)],
         verbose_name="Total TTC"
     )
-    status = models.CharField(
+    company = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
-        default='BROUILLON',
-        verbose_name="Statut"
+        choices=COMPANY_CHOICES,
+        default='NETSYSTEME',
+        verbose_name="Société"
     )
-    notes = models.TextField(
-        blank=True,
+    converted_invoice = models.ForeignKey(
+        'invoices.Invoice',
+        on_delete=models.SET_NULL,
         null=True,
-        verbose_name="Notes"
+        blank=True,
+        related_name='source_quote',
+        verbose_name="Facture issue du devis"
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Date de modification")
@@ -96,7 +95,6 @@ class Quote(models.Model):
         ordering = ['-date', '-created_at']
         indexes = [
             models.Index(fields=['quote_number']),
-            models.Index(fields=['status']),
             models.Index(fields=['date']),
             models.Index(fields=['expiration_date']),
         ]
@@ -123,16 +121,10 @@ class Quote(models.Model):
         self.save()
 
     def is_expired(self):
-        """Vérifie si le devis est expiré"""
+        """Vérifie si le devis est expiré (selon la date d'expiration)"""
         if self.expiration_date:
             return timezone.now() > self.expiration_date
         return False
-
-    def mark_as_expired(self):
-        """Marque le devis comme expiré"""
-        if self.status not in ['ACCEPTE', 'REFUSE', 'CONVERTI']:
-            self.status = 'EXPIRE'
-            self.save()
 
     def soft_delete(self):
         """Soft delete du devis"""

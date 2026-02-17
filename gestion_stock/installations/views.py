@@ -2,8 +2,11 @@ import logging
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
+from decimal import Decimal, InvalidOperation
 from .models import Installation, InstallationProduct
+from .notifications import notify_technician_installation_assignment
 from .serializers import (
     InstallationSerializer,
     InstallationCreateSerializer,
@@ -40,9 +43,8 @@ class InstallationViewSet(viewsets.ModelViewSet):
         """Filtre les installations supprimées et optimise les requêtes"""
         queryset = Installation.objects.filter(deleted_at__isnull=True)
         
-        # Optimiser les requêtes avec select_related et prefetch_related
-        queryset = queryset.select_related('client', 'technician')
-        queryset = queryset.prefetch_related('products_used__product')
+        queryset = queryset.select_related('client', 'technician', 'commercial_agent')
+        queryset = queryset.prefetch_related('products_used__product', 'technicians')
         
         # Si l'utilisateur est un technicien (pas admin), filtrer par défaut ses installations
         if self.request.user and self.request.user.is_authenticated:
@@ -82,6 +84,19 @@ class InstallationViewSet(viewsets.ModelViewSet):
         
         return queryset
 
+    def perform_create(self, serializer):
+        """Après création : si un technicien est assigné, lui envoyer un SMS."""
+        instance = serializer.save()
+        if instance.technician_id:
+            notify_technician_installation_assignment(instance, instance.technician)
+
+    def perform_update(self, serializer):
+        """Après mise à jour : si le technicien a changé, envoyer un SMS au nouveau technicien."""
+        old_technician_id = getattr(serializer.instance, 'technician_id', None)
+        instance = serializer.save()
+        if instance.technician_id and instance.technician_id != old_technician_id:
+            notify_technician_installation_assignment(instance, instance.technician)
+
     def list(self, request, *args, **kwargs):
         """Override list pour gérer les erreurs"""
         try:
@@ -110,6 +125,7 @@ class InstallationViewSet(viewsets.ModelViewSet):
             technician = User.objects.get(id=technician_id)
             installation.technician = technician
             installation.save()
+            notify_technician_installation_assignment(installation, technician)
             serializer = self.get_serializer(installation)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
@@ -224,3 +240,74 @@ class InstallationViewSet(viewsets.ModelViewSet):
                 {'error': 'Produit introuvable dans cette installation'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+    @action(detail=True, methods=['post'], url_path='record-payment')
+    def record_payment(self, request, pk=None):
+        """Enregistrer un nouveau versement pour une installation."""
+        installation = self.get_object()
+        amount_raw = request.data.get('amount')
+        payment_date = request.data.get('payment_date')
+
+        if amount_raw is None or amount_raw == '':
+            return Response(
+                {'error': 'Le montant à verser est requis.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            amount = Decimal(str(amount_raw))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {'error': 'Montant invalide.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if amount <= 0:
+            return Response(
+                {'error': 'Le montant doit être strictement positif.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        total = installation.total_amount or Decimal('0')
+        advance = installation.advance_amount or Decimal('0')
+        remaining = installation.remaining_amount
+        if remaining is None or (remaining == 0 and total > advance):
+            remaining = max(Decimal('0'), total - advance)
+        tolerance = Decimal('1')
+        if amount > remaining + tolerance:
+            return Response(
+                {'error': f'Le montant ne peut pas dépasser le restant à payer ({remaining} F).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        installation.advance_amount = advance + amount
+        installation.remaining_amount = max(Decimal('0'), remaining - amount)
+        installation.save(update_fields=['advance_amount', 'remaining_amount'])
+
+        serializer = self.get_serializer(installation)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload-contract',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def upload_contract(self, request, pk=None):
+        """
+        Uploader ou mettre à jour le contrat associé à une installation.
+
+        Attend un champ de fichier nommé 'contract_file'.
+        """
+        installation = self.get_object()
+        file_obj = request.FILES.get('contract_file') or request.FILES.get('file') or request.FILES.get('contract')
+
+        if not file_obj:
+            return Response(
+                {'error': 'Aucun fichier de contrat fourni.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        installation.contract_file = file_obj
+        installation.save()
+
+        serializer = self.get_serializer(installation)
+        return Response(serializer.data, status=status.HTTP_200_OK)

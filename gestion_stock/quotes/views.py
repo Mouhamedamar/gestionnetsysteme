@@ -2,7 +2,6 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.utils import timezone
 from .models import Quote, QuoteItem
 from .serializers import (
     QuoteSerializer,
@@ -22,7 +21,6 @@ class QuoteViewSet(viewsets.ModelViewSet):
     queryset = Quote.objects.filter(deleted_at__isnull=True)
     permission_classes = [IsAdminOrCommercial]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status']
     search_fields = ['quote_number', 'client_name', 'client_email']
     ordering_fields = ['date', 'expiration_date', 'total_ttc', 'created_at']
     ordering = ['-date', '-created_at']
@@ -35,36 +33,30 @@ class QuoteViewSet(viewsets.ModelViewSet):
             return QuoteUpdateSerializer
         return QuoteSerializer
 
+    def create(self, request, *args, **kwargs):
+        """Crée le devis puis retourne la représentation complète (quote_number, date, quote_items)."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        quote = serializer.save()
+        # Recharger avec les relations pour le sérialiseur complet
+        quote = Quote.objects.prefetch_related('quote_items__product').select_related('client').get(pk=quote.pk)
+        output_serializer = QuoteSerializer(quote)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
     def get_queryset(self):
-        """Filtre les devis supprimés et vérifie les expirations"""
-        queryset = Quote.objects.filter(deleted_at__isnull=True).prefetch_related(
+        """Filtre les devis supprimés"""
+        return Quote.objects.filter(deleted_at__isnull=True).prefetch_related(
             'quote_items__product'
-        ).select_related('client')
-        
-        # Marquer automatiquement les devis expirés
-        expired_quotes = queryset.filter(
-            expiration_date__lt=timezone.now(),
-            status__in=['BROUILLON', 'ENVOYE']
-        )
-        for quote in expired_quotes:
-            quote.mark_as_expired()
-        
-        return queryset
+        ).select_related('client', 'converted_invoice')
 
     @action(detail=True, methods=['post'])
     def convert_to_invoice(self, request, pk=None):
         """Convertit un devis en facture"""
         quote = self.get_object()
         
-        if quote.status == 'CONVERTI':
+        if quote.converted_invoice_id:
             return Response(
                 {'error': 'Ce devis a déjà été converti en facture'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        if quote.status not in ['ACCEPTE', 'ENVOYE']:
-            return Response(
-                {'error': 'Seuls les devis acceptés ou envoyés peuvent être convertis en facture'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -72,11 +64,11 @@ class QuoteViewSet(viewsets.ModelViewSet):
             from invoices.models import Invoice, InvoiceItem
             from stock.models import StockMovement
             
-            # Créer la facture
+            # Créer la facture (société = celle du devis)
             invoice = Invoice.objects.create(
                 client=quote.client,
                 client_name=quote.client_name,
-                status='NON_PAYE',
+                company=quote.company,
                 is_proforma=False
             )
             
@@ -87,7 +79,7 @@ class QuoteViewSet(viewsets.ModelViewSet):
                 
                 # Vérifier le stock
                 if product.quantity < quantity:
-                    invoice.delete()  # Annuler la création de la facture
+                    invoice.delete()
                     return Response(
                         {
                             'error': f"Stock insuffisant pour le produit {product.name}. "
@@ -103,7 +95,6 @@ class QuoteViewSet(viewsets.ModelViewSet):
                     unit_price=quote_item.unit_price
                 )
                 
-                # Créer le mouvement de sortie de stock
                 StockMovement.objects.create(
                     product=product,
                     movement_type='SORTIE',
@@ -111,12 +102,10 @@ class QuoteViewSet(viewsets.ModelViewSet):
                     comment=f"Sortie pour facture {invoice.invoice_number} (convertie depuis devis {quote.quote_number})"
                 )
             
-            # Calculer les totaux
             invoice.calculate_totals()
             
-            # Marquer le devis comme converti
-            quote.status = 'CONVERTI'
-            quote.save()
+            quote.converted_invoice = invoice
+            quote.save(update_fields=['converted_invoice'])
             
             from invoices.serializers import InvoiceSerializer
             invoice_serializer = InvoiceSerializer(invoice)
@@ -131,48 +120,6 @@ class QuoteViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-    @action(detail=True, methods=['post'])
-    def mark_as_sent(self, request, pk=None):
-        """Marque un devis comme envoyé"""
-        quote = self.get_object()
-        if quote.status == 'BROUILLON':
-            quote.status = 'ENVOYE'
-            quote.save()
-            serializer = self.get_serializer(quote)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(
-            {'error': 'Seuls les devis en brouillon peuvent être marqués comme envoyés'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    @action(detail=True, methods=['post'])
-    def mark_as_accepted(self, request, pk=None):
-        """Marque un devis comme accepté"""
-        quote = self.get_object()
-        if quote.status in ['ENVOYE', 'BROUILLON']:
-            quote.status = 'ACCEPTE'
-            quote.save()
-            serializer = self.get_serializer(quote)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(
-            {'error': 'Seuls les devis envoyés ou en brouillon peuvent être acceptés'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    @action(detail=True, methods=['post'])
-    def mark_as_refused(self, request, pk=None):
-        """Marque un devis comme refusé"""
-        quote = self.get_object()
-        if quote.status in ['ENVOYE', 'BROUILLON']:
-            quote.status = 'REFUSE'
-            quote.save()
-            serializer = self.get_serializer(quote)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(
-            {'error': 'Seuls les devis envoyés ou en brouillon peuvent être refusés'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
 
     @action(detail=True, methods=['post'])
     def soft_delete(self, request, pk=None):

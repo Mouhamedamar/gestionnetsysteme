@@ -115,6 +115,11 @@ class InvoiceSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    payment_status = serializers.CharField(source='get_payment_status', read_only=True)
+    remaining_amount = serializers.SerializerMethodField()
+
+    def get_remaining_amount(self, obj):
+        return obj.remaining_amount
 
     class Meta:
         model = Invoice
@@ -122,12 +127,15 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'id',
             'invoice_number',
             'date',
+            'company',
             'client',
             'client_id',
             'client_name',
             'total_ht',
             'total_ttc',
-            'status',
+            'amount_paid',
+            'remaining_amount',
+            'payment_status',
             'is_cancelled',
             'is_proforma',
             'invoice_items',
@@ -140,6 +148,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'invoice_number',
             'total_ht',
             'total_ttc',
+            'remaining_amount',
+            'payment_status',
             'created_at',
             'updated_at',
         ]
@@ -174,52 +184,54 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         fields = [
             'client_id',
             'client_name',
-            'status',
+            'company',
             'is_proforma',
             'items',
         ]
 
     def create(self, validated_data):
-        """Création de la facture avec ses items"""
+        """Création de la facture avec ses items. Pro forma : pas de vérification stock ni sortie stock."""
         items_data = validated_data.pop('items')
-        
+        is_proforma = validated_data.get('is_proforma', False)
+
         # Extraire le client pour le définir dans client_name aussi
         client = validated_data.get('client')
         if client and 'client_name' not in validated_data:
             validated_data['client_name'] = client.name
-        
+
         invoice = Invoice.objects.create(**validated_data)
-        
-        # Créer les items et vérifier le stock
+
+        # Créer les items
         for item_data in items_data:
             product = item_data['product']
             quantity = item_data['quantity']
-            
-            # Vérifier le stock
-            if product.quantity < quantity:
-                invoice.delete()  # Annuler la création de la facture
+
+            # Vérifier le stock uniquement pour les factures définitives (pas les pro forma)
+            if not is_proforma and product.quantity < quantity:
+                invoice.delete()
                 raise serializers.ValidationError(
                     {
                         'items': f"Stock insuffisant pour le produit {product.name}. "
                                 f"Stock disponible: {product.quantity}, demandé: {quantity}"
                     }
                 )
-            
+
             InvoiceItem.objects.create(invoice=invoice, **item_data)
-        
+
         # Calculer les totaux
         invoice.calculate_totals()
-        
-        # Créer les mouvements de sortie de stock
-        from stock.models import StockMovement
-        for item in invoice.invoice_items.all():
-            StockMovement.objects.create(
-                product=item.product,
-                movement_type='SORTIE',
-                quantity=item.quantity,
-                comment=f"Sortie pour facture {invoice.invoice_number}"
-            )
-        
+
+        # Sortie de stock uniquement pour les factures définitives (pas pour les pro forma)
+        if not is_proforma:
+            from stock.models import StockMovement
+            for item in invoice.invoice_items.all():
+                StockMovement.objects.create(
+                    product=item.product,
+                    movement_type='SORTIE',
+                    quantity=item.quantity,
+                    comment=f"Sortie pour facture {invoice.invoice_number}"
+                )
+
         return invoice
 
 
@@ -234,12 +246,13 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    
+
     class Meta:
         model = Invoice
         fields = [
             'date',
             'client_id',
             'client_name',
-            'status',
+            'company',
+            'amount_paid',
         ]

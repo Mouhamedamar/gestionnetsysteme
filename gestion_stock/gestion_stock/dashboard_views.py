@@ -43,11 +43,10 @@ def dashboard_stats(request):
         deleted_at__isnull=True
     ).count()
     
-    # Chiffre d'affaires (total TTC des factures payées)
+    # Chiffre d'affaires (total TTC des factures)
     revenue = Invoice.objects.filter(
         deleted_at__isnull=True,
-        is_cancelled=False,
-        status='PAYE'
+        is_cancelled=False
     ).aggregate(
         total=Sum('total_ttc')
     )['total'] or 0
@@ -81,7 +80,6 @@ def dashboard_charts(request):
     monthly_revenue = Invoice.objects.filter(
         deleted_at__isnull=True,
         is_cancelled=False,
-        status='PAYE',
         date__gte=six_months_ago
     ).annotate(
         month=TruncMonth('date')

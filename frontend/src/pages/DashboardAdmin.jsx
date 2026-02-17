@@ -9,13 +9,13 @@ import {
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
-  Calendar,
   Layers,
   Users,
   Settings
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, Cell } from 'recharts';
 import Loader from '../components/Loader';
+import PageHeader from '../components/PageHeader';
 import StockAlertNotification from '../components/StockAlertNotification';
 import { formatCurrency } from '../utils/formatCurrency';
 import { API_BASE_URL } from '../config';
@@ -161,32 +161,19 @@ const DashboardAdmin = () => {
       {/* Stock Alert Notifications */}
       <StockAlertNotification lowStockProducts={lowStockProducts} />
       
-      {/* Welcome Header */}
-      <div className="glass-card p-8 border-white/40 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-          <Settings className="w-32 h-32 text-primary-600" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-1 w-12 bg-primary-600 rounded-full"></div>
-            <span className="text-primary-600 font-bold uppercase tracking-widest text-xs">Vue d'ensemble</span>
-          </div>
-          <h1 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Tableau de Bord - Administrateur</h1>
-          <div className="flex items-center gap-4 text-slate-500">
-            <div className="flex items-center gap-2 bg-white/50 px-3 py-1 rounded-lg border border-slate-200/50">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm font-semibold">{new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-            </div>
-            <div className="h-4 w-px bg-slate-300"></div>
-            <p className="text-sm font-medium">Gestion complète de l'application Max-Immo.</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Tableau de Bord Administrateur"
+        subtitle={`${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} — Gestion complète de l'application`}
+        badge="Administration"
+        icon={Settings}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
+          <div key={index} className="animate-slide-up" style={{ animationDelay: `${index * 70}ms`, animationFillMode: 'both' }}>
+            <StatCard {...stat} />
+          </div>
         ))}
       </div>
 
@@ -409,7 +396,6 @@ const DashboardAdmin = () => {
                 <th className="table-header">Client</th>
                 <th className="table-header">Date</th>
                 <th className="table-header">Total TTC</th>
-                <th className="table-header">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -424,14 +410,6 @@ const DashboardAdmin = () => {
                   </td>
                   <td className="table-cell font-black text-slate-800">
                     {formatCurrency(invoice.total_ttc)} F CFA
-                  </td>
-                  <td className="table-cell">
-                    <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase ${invoice.status === 'PAYE'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-amber-100 text-amber-700'
-                      }`}>
-                      {invoice.status === 'PAYE' ? '✓ Payé' : '⏳ En attente'}
-                    </span>
                   </td>
                 </tr>
               ))}

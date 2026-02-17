@@ -12,9 +12,22 @@ import os
 # =============================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Charger .env depuis le dossier gestion_stock/ (où se trouve manage.py)
+_env_path = BASE_DIR / '.env'
+try:
+    from decouple import Config, RepositoryEnv
+    _env_config = Config(RepositoryEnv(str(_env_path))) if _env_path.exists() else Config()
+    def env_config(key, default=''):
+        return _env_config.get(key, default=default)
+except (ImportError, Exception):
+    def env_config(key, default=''):
+        return os.environ.get(key, default)
+
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-prod')
-DEBUG = False
-ALLOWED_HOSTS = ['.onrender.com']
+
+# Mode développement local : activer DEBUG et autoriser localhost
+DEBUG = True
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 DEFAULT_HOST = os.environ.get('DEFAULT_HOST', 'localhost:8000')
 
 # =============================
@@ -226,10 +239,20 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 # =============================
-# SMS (Twilio – notifications assignation technicien)
+# SMS – API Orange (Sénégal) – NETSYSTEME et SSE
 # =============================
-# Pour envoyer de vrais SMS : installer twilio (pip install twilio) et définir :
-# TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER (ex: +33...)
+# Lecture depuis .env (découple) ou variables d'environnement
+# NETSYSTEME (défaut)
+ORANGE_CLIENT_ID = env_config('ORANGE_CLIENT_ID', default='') or env_config('ORANGE_SMS_CLIENT_ID', default='')
+ORANGE_CLIENT_SECRET = env_config('ORANGE_CLIENT_SECRET', default='') or env_config('ORANGE_SMS_CLIENT_SECRET', default='')
+ORANGE_SENDER_NAME = env_config('ORANGE_SENDER_NAME', default='') or env_config('ORANGE_SMS_SENDER_NAME', default='')
+
+# SSE (société alternée)
+ORANGE_CLIENT_ID_SSE = env_config('ORANGE_CLIENT_ID_SSE', default='')
+ORANGE_CLIENT_SECRET_SSE = env_config('ORANGE_CLIENT_SECRET_SSE', default='')
+ORANGE_SENDER_NAME_SSE = env_config('ORANGE_SENDER_NAME_SSE', default='SSE')
+
+# Compatibilité ancienne config Twilio (non utilisée)
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER = os.environ.get('TWILIO_FROM_NUMBER', '')

@@ -10,8 +10,8 @@ class InvoiceItemInline(admin.TabularInline):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ['invoice_number', 'client_name', 'total_ttc', 'status', 'is_cancelled', 'date']
-    list_filter = ['status', 'is_cancelled', 'date']
+    list_display = ['invoice_number', 'client_name', 'total_ttc', 'is_cancelled', 'date']
+    list_filter = ['is_cancelled', 'date']
     search_fields = ['invoice_number', 'client_name']
     readonly_fields = ['invoice_number', 'total_ht', 'total_ttc', 'created_at', 'updated_at']
     inlines = [InvoiceItemInline]

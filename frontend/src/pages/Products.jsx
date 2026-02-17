@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, X, FileDown } from 'lucide-react';
+import { Plus, Search, X, FileDown, Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ProductCard from '../components/ProductCard';
 import ProductForm from '../components/ProductForm';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PageHeader from '../components/PageHeader';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportProductsToCSV } from '../utils/exportData';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -97,109 +98,93 @@ const Products = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="page-title">Produits</h1>
-          <p className="page-subtitle">Gestion des produits en stock</p>
-        </div>
-        <div className="page-actions">
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="btn-secondary"
-            title="Exporter en CSV"
-          >
-            <FileDown className="w-5 h-5" />
-            Exporter CSV
-          </button>
-          <button
-            type="button"
-            onClick={handleAddProduct}
-            className="btn-primary"
-          >
-            <Plus className="w-5 h-5" />
-            Nouveau produit
-          </button>
-        </div>
-      </div>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <PageHeader
+        title="Produits"
+        subtitle="Gestion des produits et du catalogue"
+        badge="Catalogue"
+        icon={Package}
+      >
+        <button type="button" onClick={handleExportCSV} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all" title="Exporter en CSV">
+          <FileDown className="w-5 h-5" />
+          Exporter CSV
+        </button>
+        <button type="button" onClick={handleAddProduct} className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+          <Plus className="w-5 h-5" />
+          Nouveau produit
+        </button>
+      </PageHeader>
 
       {/* Notification */}
       {notification && (
-        <div className={`p-4 rounded-lg ${
-          notification.type === 'success' ? 'bg-green-100 text-green-700' :
-          notification.type === 'error' ? 'bg-red-100 text-red-700' :
-          'bg-yellow-100 text-yellow-700'
+        <div className={`p-4 rounded-xl ${
+          notification.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+          notification.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+          'bg-amber-50 text-amber-700 border border-amber-100'
         }`}>
           {notification.message}
         </div>
       )}
 
       {/* Filtres */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-4">
-        {/* Recherche */}
-        <div className="relative">
-          <Search className="w-5 h-5 text-gray-400 absolute left-3 top-3" />
-          <input
-            type="text"
-            placeholder="Rechercher par nom ou catégorie..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              const next = new URLSearchParams(searchParams);
-              if (e.target.value.trim()) next.set('search', e.target.value); else next.delete('search');
-              setSearchParams(next, { replace: true });
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Catégories */}
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setCategoryFilter('')}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition ${
-                !categoryFilter
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Toutes
-            </button>
-            {categories.map(category => (
+      <div className="glass-card p-6 shadow-xl border-white/60">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom ou catégorie..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value.trim()) next.set('search', e.target.value); else next.delete('search');
+                setSearchParams(next, { replace: true });
+              }}
+              className="input-field pl-12"
+            />
+          </div>
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
               <button
-                key={category}
-                onClick={() => setCategoryFilter(category)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition ${
-                  categoryFilter === category
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                onClick={() => setCategoryFilter('')}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  !categoryFilter ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {category}
+                Toutes
               </button>
-            ))}
-          </div>
-        )}
+              {categories.map(category => (
+                <button
+                  key={category}
+                  onClick={() => setCategoryFilter(category)}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    categoryFilter === category ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Résultats */}
       <div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm font-semibold text-slate-600 mb-4">
           {filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''} trouvé{filteredProducts.length !== 1 ? 's' : ''}
         </p>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin">
-              <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full"></div>
-            </div>
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin w-12 h-12 border-4 border-slate-200 border-t-primary-600 rounded-full" />
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg">
-            <p className="text-gray-500 text-lg">Aucun produit trouvé</p>
-            <p className="text-gray-400 text-sm mt-1">Créez un nouveau produit pour commencer</p>
+          <div className="text-center py-20 glass-card rounded-2xl border-2 border-dashed border-slate-200">
+            <Package className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="font-bold text-slate-700 text-lg">Aucun produit trouvé</p>
+            <p className="text-slate-500 text-sm mt-1">Créez un nouveau produit pour commencer</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
