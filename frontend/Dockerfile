@@ -22,7 +22,6 @@ FROM nginxinc/nginx-unprivileged:stable-alpine AS production
 LABEL org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}"
 
 # Contenu statique depuis le builder
-RUN rm -rf /usr/share/nginx/html/*
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Config nginx rootless (port 8080)
