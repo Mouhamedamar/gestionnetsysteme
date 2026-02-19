@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { getErrorMessage, CONNECTION_ERROR_MESSAGE } from '../utils/errorHandler';
 import { 
   User, 
   Lock, 
@@ -34,7 +35,7 @@ const Login = () => {
       await login(username, password);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'Erreur lors de la connexion');
+      setError(getErrorMessage(err, 'Erreur lors de la connexion'));
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +76,16 @@ const Login = () => {
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-red-800">{error}</p>
+                {error === CONNECTION_ERROR_MESSAGE && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Dans le dossier du projet : <code className="bg-red-100/80 px-1.5 py-0.5 rounded">gestion_stock</code>, exécutez : <code className="bg-red-100/80 px-1.5 py-0.5 rounded">python manage.py runserver</code>
+                  </p>
+                )}
+                {(error === 'Identifiants invalides' || error.toLowerCase().includes('identifiants')) && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Vérifiez le nom d&apos;utilisateur et le mot de passe. Si le compte existe, assurez-vous qu&apos;il est actif (Admin Django → Utilisateurs).
+                  </p>
+                )}
               </div>
             </div>
           )}

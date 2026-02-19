@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import Login from './pages/Login';
@@ -10,6 +11,7 @@ import Products from './pages/Products';
 import Clients from './pages/Clients';
 import StockMovements from './pages/StockMovements';
 import StockNotifications from './pages/StockNotifications';
+import StockLowStockReminders from './pages/StockLowStockReminders';
 import Stock from './pages/Stock';
 import Invoices from './pages/Invoices';
 import Quotes from './pages/Quotes';
@@ -36,23 +38,26 @@ const PrivateRoute = ({ children }) => {
   return loggedIn ? children : <Navigate to="/login" />;
 };
 
-const AppRoutes = () => {
-  const { notification, setNotification, user } = useApp();
+// Défini au niveau du module pour éviter démontage/remontage à chaque mise à jour du contexte (sinon boucle infinie)
+function DashboardRouter() {
+  const { user } = useApp();
+  const role = user?.role || 'admin';
+  switch (role) {
+    case 'admin':
+      return <DashboardAdmin />;
+    case 'technicien':
+      return <DashboardTechnicien />;
+    case 'commercial':
+      return <DashboardCommercial />;
+    default:
+      return <DashboardAdmin />;
+  }
+}
 
-  // Composant pour router vers le bon dashboard selon le rôle
-  const DashboardRouter = () => {
-    const role = user?.role || 'admin';
-    switch (role) {
-      case 'admin':
-        return <DashboardAdmin />;
-      case 'technicien':
-        return <DashboardTechnicien />;
-      case 'commercial':
-        return <DashboardCommercial />;
-      default:
-        return <DashboardAdmin />;
-    }
-  };
+const AppRoutes = () => {
+  const { notification, setNotification } = useApp();
+
+  const handleCloseNotification = useCallback(() => setNotification(null), [setNotification]);
 
   return (
     <>
@@ -73,6 +78,7 @@ const AppRoutes = () => {
           <Route path="stock" element={<Stock />} />
           <Route path="stock-movements" element={<StockMovements />} />
           <Route path="stock-notifications" element={<StockNotifications />} />
+          <Route path="stock-reminders" element={<StockLowStockReminders />} />
           <Route path="interventions" element={<Interventions />} />
           <Route path="installations" element={<Installations />} />
           <Route path="installations/rappels-paiement" element={<InstallationPaymentReminders />} />
@@ -97,7 +103,7 @@ const AppRoutes = () => {
         <Notification
           message={notification.message}
           type={notification.type}
-          onClose={() => setNotification(null)}
+          onClose={handleCloseNotification}
         />
       )}
     </>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { Link } from 'react-router-dom';
 import {
   Package,
   AlertTriangle,
@@ -11,7 +12,9 @@ import {
   ArrowDownRight,
   Layers,
   Users,
-  Settings
+  Settings,
+  Wrench,
+  ChevronRight
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, Cell } from 'recharts';
 import Loader from '../components/Loader';
@@ -70,6 +73,15 @@ const DashboardAdmin = () => {
   const safeStats = dashboardStats || {};
   const monthlyRevenue = safeStats.monthly_revenue || [];
   const topProducts = safeStats.top_products || [];
+  const topTechnicians = safeStats.top_technicians_installations || [];
+  const topTechniciansInterventions = safeStats.top_technicians_interventions || [];
+
+  /** Affiche le rang en français : 1er, 2e, 3e, 4e, 5e */
+  const formatRank = (rank) => {
+    if (rank === 1) return '1er';
+    if (rank >= 2 && rank <= 9) return `${rank}e`;
+    return `${rank}e`;
+  };
   
   // Filtrer les produits avec stock faible
   const lowStockProducts = (safeStats.top_products || []).filter(product => product.is_low_stock);
@@ -158,9 +170,59 @@ const DashboardAdmin = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      {/* Stock Alert Notifications */}
+      {/* Rappel produits en stock faible – en haut du dashboard */}
+      {lowStockProducts && lowStockProducts.length > 0 && (
+        <div className="animate-slide-up">
+          <div className="glass-card border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50/80 shadow-lg rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-700">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-lg font-black text-amber-900">
+                  Produits en stock faible
+                </h2>
+                <p className="text-sm text-amber-800/90 mt-0.5">
+                  {lowStockProducts.length} produit{lowStockProducts.length > 1 ? 's' : ''} à réapprovisionner
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-amber-900/90">
+                  {lowStockProducts.slice(0, 5).map((p) => (
+                    <li key={p.id} className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                      <span className="truncate max-w-[140px] sm:max-w-none">{p.name}</span>
+                      {p.quantity != null && (
+                        <span className="text-amber-700 font-semibold">({p.quantity})</span>
+                      )}
+                    </li>
+                  ))}
+                  {lowStockProducts.length > 5 && (
+                    <li className="text-amber-700">+ {lowStockProducts.length - 5} autre{lowStockProducts.length - 5 > 1 ? 's' : ''}</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 flex-wrap gap-2">
+              <Link
+                to="/stock-reminders"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 shadow-md hover:shadow-lg transition-all"
+              >
+                Envoyer les rappels
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/products"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/90 text-amber-800 font-bold text-sm hover:bg-white border border-amber-200 transition-all"
+              >
+                Voir les produits
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification flottante (rappel complémentaire) */}
       <StockAlertNotification lowStockProducts={lowStockProducts} />
-      
+
       <PageHeader
         title="Tableau de Bord Administrateur"
         subtitle={`${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} — Gestion complète de l'application`}
@@ -282,6 +344,144 @@ const DashboardAdmin = () => {
               <Bar dataKey="SORTIE" name="Sorties" fill="#f43f5e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Classement des techniciens par installations */}
+      <div className="card p-0 overflow-hidden border-none shadow-2xl">
+        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Top Techniciens (Installations)</h2>
+            <p className="text-sm text-slate-400 font-medium mt-1">Classement par nombre d&apos;installations terminées</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-2xl text-slate-700">
+            <Wrench className="w-6 h-6" />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className="table-header">Rang</th>
+                <th className="table-header">Technicien</th>
+                <th className="table-header">Installations terminées</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {topTechnicians.map((tech) => (
+                <tr key={tech.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="table-cell">
+                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-full font-bold text-sm ${
+                      tech.rank === 1
+                        ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                        : tech.rank === 2
+                        ? 'bg-slate-200 text-slate-800 ring-1 ring-slate-300'
+                        : tech.rank === 3
+                        ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {formatRank(tech.rank)}
+                    </span>
+                  </td>
+                  <td className="table-cell">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm flex-shrink-0">
+                        {(tech.full_name || tech.username || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">
+                          {tech.full_name?.trim() || tech.username || '—'}
+                        </p>
+                        {tech.username && (tech.full_name?.trim() || '').toLowerCase() !== tech.username.toLowerCase() && (
+                          <p className="text-xs text-slate-500 truncate">@{tech.username}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="table-cell">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-sm">
+                      {typeof tech.total_installations === 'number' ? tech.total_installations : (tech.total_installations ?? 0)} installation{(tech.total_installations ?? 0) > 1 ? 's' : ''}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {topTechnicians.length === 0 && (
+            <div className="p-8 text-center text-slate-500">
+              <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Aucune installation terminée pour le moment.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Classement des techniciens par interventions */}
+      <div className="card p-0 overflow-hidden border-none shadow-2xl">
+        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Top Techniciens (Interventions)</h2>
+            <p className="text-sm text-slate-400 font-medium mt-1">Classement par nombre d&apos;interventions terminées</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-2xl text-slate-700">
+            <Wrench className="w-6 h-6" />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className="table-header">Rang</th>
+                <th className="table-header">Technicien</th>
+                <th className="table-header">Interventions terminées</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {topTechniciansInterventions.map((tech) => (
+                <tr key={tech.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="table-cell">
+                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-full font-bold text-sm ${
+                      tech.rank === 1
+                        ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                        : tech.rank === 2
+                        ? 'bg-slate-200 text-slate-800 ring-1 ring-slate-300'
+                        : tech.rank === 3
+                        ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-200'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {formatRank(tech.rank)}
+                    </span>
+                  </td>
+                  <td className="table-cell">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-sm flex-shrink-0">
+                        {(tech.full_name || tech.username || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">
+                          {tech.full_name?.trim() || tech.username || '—'}
+                        </p>
+                        {tech.username && (tech.full_name?.trim() || '').toLowerCase() !== tech.username.toLowerCase() && (
+                          <p className="text-xs text-slate-500 truncate">@{tech.username}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="table-cell">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-sm">
+                      {typeof tech.total_interventions === 'number' ? tech.total_interventions : (tech.total_interventions ?? 0)} intervention{(tech.total_interventions ?? 0) > 1 ? 's' : ''}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {topTechniciansInterventions.length === 0 && (
+            <div className="p-8 text-center text-slate-500">
+              <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
+              <p className="font-medium">Aucune intervention terminée pour le moment.</p>
+            </div>
+          )}
         </div>
       </div>
 

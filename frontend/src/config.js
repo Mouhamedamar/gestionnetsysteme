@@ -13,10 +13,13 @@
 const PRODUCTION_API = 'https://gestionnetsysteme.onrender.com';
 const isProd = import.meta.env.PROD;
 
-// URL de base de l'API utilisée par le frontend
-export const API_BASE_URL = isProd
-  ? PRODUCTION_API
-  : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+// URL de base de l'API : vide = même origine (reverse proxy Nginx), sinon URL explicite
+export const API_BASE_URL = (() => {
+  const u = import.meta.env.VITE_API_URL;
+  if (u !== undefined && u !== '') return u;
+  if (isProd) return ''; // même origine quand derrière Nginx
+  return 'http://localhost:8000';
+})();
 
 /**
  * Flag global pour activer/désactiver les appels API.

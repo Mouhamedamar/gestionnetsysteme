@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, X, FileDown, Package } from 'lucide-react';
+import { Plus, Search, X, FileDown, Package, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ProductCard from '../components/ProductCard';
 import ProductForm from '../components/ProductForm';
@@ -21,6 +21,11 @@ const Products = () => {
   const [viewingProduct, setViewingProduct] = useState(null);
   const [productToDelete, setProductToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const PRODUCTS_PER_PAGE = 12;
 
   // Synchroniser la recherche avec l'URL (arrivée sur la page ou navigation)
   useEffect(() => {
@@ -30,6 +35,11 @@ const Products = () => {
 
   // Debounce de la recherche
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // Revenir à la page 1 quand les filtres ou le tri changent
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, categoryFilter, sortBy, sortOrder]);
 
   // Filtrer les produits (null-safe pour name/category)
   const filteredProducts = products.filter(product => {
@@ -41,8 +51,43 @@ const Products = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // Récupérer les catégories uniques
-  const categories = [...new Set(products.filter(p => p.category && p.category.trim()).map(p => p.category))].sort();
+  // Trier les produits pour un affichage organisé
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts];
+    const isLowStock = (p) => (p.quantity ?? 0) <= (p.alert_threshold ?? 0);
+    const cmp = (a, b) => {
+      if (sortBy === 'stock_priority') {
+        const aLow = isLowStock(a) ? 1 : 0;
+        const bLow = isLowStock(b) ? 1 : 0;
+        if (aLow !== bLow) return sortOrder === 'asc' ? bLow - aLow : aLow - bLow;
+        return (a.quantity ?? 0) - (b.quantity ?? 0);
+      }
+      let va = a[sortBy];
+      let vb = b[sortBy];
+      if (sortBy === 'name' || sortBy === 'category') {
+        va = (va ?? '').toString().toLowerCase();
+        vb = (vb ?? '').toString().toLowerCase();
+        const r = va.localeCompare(vb, 'fr');
+        return sortOrder === 'asc' ? r : -r;
+      }
+      va = Number(va) ?? 0;
+      vb = Number(vb) ?? 0;
+      return sortOrder === 'asc' ? va - vb : vb - va;
+    };
+    list.sort(cmp);
+    return list;
+  }, [filteredProducts, sortBy, sortOrder]);
+
+  // Récupérer les catégories uniques (tri alphabétique)
+  const categories = useMemo(
+    () => [...new Set(products.filter(p => p.category && p.category.trim()).map(p => p.category))].sort((a, b) => a.localeCompare(b, 'fr')),
+    [products]
+  );
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PRODUCTS_PER_PAGE));
+  const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
+  const paginatedProducts = sortedProducts.slice(startIndex, startIndex + PRODUCTS_PER_PAGE);
 
   const handleAddProduct = () => {
     setEditingProduct(null);
@@ -170,34 +215,128 @@ const Products = () => {
         </div>
       </div>
 
-      {/* Résultats */}
+      {/* Résultats et tri */}
       <div>
-        <p className="text-sm font-semibold text-slate-600 mb-4">
-          {filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''} trouvé{filteredProducts.length !== 1 ? 's' : ''}
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <p className="text-sm font-semibold text-slate-600">
+            {sortedProducts.length} produit{sortedProducts.length !== 1 ? 's' : ''} trouvé{sortedProducts.length !== 1 ? 's' : ''}
+            {totalPages > 1 && (
+              <span className="text-slate-500 font-medium ml-1">
+                — Page {currentPage} sur {totalPages}
+              </span>
+            )}
+          </p>
+          {sortedProducts.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                <ArrowUpDown className="w-4 h-4" />
+                Trier par
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="name">Nom (A → Z)</option>
+                <option value="category">Catégorie</option>
+                <option value="quantity">Quantité en stock</option>
+                <option value="sale_price">Prix de vente</option>
+                <option value="stock_priority">Stock (faible d'abord)</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
+                title={sortOrder === 'asc' ? 'Croissant (cliquer pour décroissant)' : 'Décroissant (cliquer pour croissant)'}
+              >
+                {sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                {sortOrder === 'asc' ? 'Croissant' : 'Décroissant'}
+              </button>
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin w-12 h-12 border-4 border-slate-200 border-t-primary-600 rounded-full" />
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : sortedProducts.length === 0 ? (
           <div className="text-center py-20 glass-card rounded-2xl border-2 border-dashed border-slate-200">
             <Package className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <p className="font-bold text-slate-700 text-lg">Aucun produit trouvé</p>
             <p className="text-slate-500 text-sm mt-1">Créez un nouveau produit pour commencer</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onEdit={() => handleEditProduct(product)}
-                onDelete={() => handleDeleteProduct(product)}
-                onView={() => handleViewProduct(product)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onEdit={() => handleEditProduct(product)}
+                  onDelete={() => handleDeleteProduct(product)}
+                  onView={() => handleViewProduct(product)}
+                />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <p className="text-sm text-slate-600">
+                  {startIndex + 1}-{Math.min(startIndex + PRODUCTS_PER_PAGE, sortedProducts.length)} sur {sortedProducts.length}
+                </p>
+                <nav className="flex items-center gap-1" aria-label="Pagination">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Page précédente"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-1 mx-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      const showPage =
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 2 && page <= currentPage + 2);
+                      if (!showPage) {
+                        if (page === currentPage - 3 || page === currentPage + 3) {
+                          return <span key={page} className="px-2 text-slate-400">…</span>;
+                        }
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          type="button"
+                          onClick={() => setCurrentPage(page)}
+                          className={`min-w-[2.25rem] py-2 px-2 rounded-lg text-sm font-semibold transition-colors ${
+                            currentPage === page
+                              ? 'bg-primary-600 text-white shadow-md'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Page suivante"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </nav>
+              </div>
+            )}
+          </>
         )}
       </div>
 

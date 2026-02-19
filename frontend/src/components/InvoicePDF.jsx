@@ -203,40 +203,40 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
                 {/* En-tête facture : CLIENT à gauche, FACTURE + N° + Date à droite */}
                 <div className="grid grid-cols-2 gap-8 mb-8 items-start">
                   <div>
-                    <p className={`text-sm font-bold uppercase tracking-wide mb-2 ${theme.label}`}>Client</p>
-                    <p className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
+                    <p className={`text-base font-bold uppercase tracking-wide mb-2 ${theme.label}`}>Client</p>
+                    <p className="text-lg font-semibold text-slate-900 border-b border-slate-200 pb-2">
                       {invoice.client_name || invoice.client?.name || '—'}
                     </p>
                   </div>
                   <div className="text-right flex flex-col items-end">
                     <div className={`${theme.badge} text-white px-5 py-3 rounded-lg shadow-sm w-fit`}>
-                      <p className="text-sm font-bold uppercase tracking-wide">Facture</p>
-                      <p className="text-sm font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
+                      <p className="text-base font-bold uppercase tracking-wide">Facture</p>
+                      <p className="text-base font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
                     </div>
-                    <p className="text-xs text-slate-600 mt-2 font-semibold uppercase">Société : {company}</p>
-                    <p className="text-sm text-slate-700 mt-2 font-medium">Date : {formatDate(invoice.date)}</p>
+                    <p className="text-sm text-slate-600 mt-2 font-semibold uppercase">Société : {company}</p>
+                    <p className="text-base text-slate-700 mt-2 font-medium">Date : {formatDate(invoice.date)}</p>
                   </div>
                 </div>
                 {/* Section 2 : Détail des prestations (tableau) */}
                 <div className="border border-slate-200 rounded-lg p-5 mb-6 bg-slate-50/50" style={{ pageBreakInside: 'avoid' }}>
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
+                  <p className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
                 <div className="mb-0 overflow-hidden rounded-lg">
                   <table className="w-full border-collapse text-base table-fixed">
                     <thead>
                       <tr className={theme.badge}>
-                        <th className={`border px-4 py-3 text-left text-sm font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Désignation</th>
-                        <th className={`border px-4 py-3 text-center text-sm font-bold text-white w-20 ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Qtd.</th>
-                        <th className={`border px-4 py-3 text-right text-sm font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>P. Unit.</th>
-                        <th className={`border px-4 py-3 text-right text-sm font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Total HT</th>
+                        <th className={`border px-4 py-3 text-left text-base font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Désignation</th>
+                        <th className={`border px-4 py-3 text-center text-base font-bold text-white w-20 ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Qtd.</th>
+                        <th className={`border px-4 py-3 text-right text-base font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>P. Unit.</th>
+                        <th className={`border px-4 py-3 text-right text-base font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Total HT</th>
                       </tr>
                     </thead>
                     <tbody>
                       {invoiceLines.map((item, index) => (
                         <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                          <td className="border border-slate-300 px-4 py-3 text-sm text-slate-900">{item.product_name || item.product_detail?.name || 'Produit non spécifié'}</td>
-                          <td className="border border-slate-300 px-4 py-3 text-center text-sm text-slate-800">{item.quantity}</td>
-                          <td className="border border-slate-300 px-4 py-3 text-right text-sm text-slate-800">{formatCurrency(item.unit_price || 0)} F CFA</td>
-                          <td className="border border-slate-300 px-4 py-3 text-right text-sm font-medium text-slate-900">{formatCurrency((item.quantity || 0) * (item.unit_price || 0))} F CFA</td>
+                          <td className="border border-slate-300 px-4 py-3 text-base text-slate-900">{item.product_name || item.product_detail?.name || 'Produit non spécifié'}</td>
+                          <td className="border border-slate-300 px-4 py-3 text-center text-base text-slate-800">{item.quantity}</td>
+                          <td className="border border-slate-300 px-4 py-3 text-right text-base text-slate-800">{formatCurrency(item.unit_price || 0)} F CFA</td>
+                          <td className="border border-slate-300 px-4 py-3 text-right text-base font-medium text-slate-900">{formatCurrency((item.quantity || 0) * (item.unit_price || 0))} F CFA</td>
                         </tr>
                       ))}
                     </tbody>
@@ -245,17 +245,17 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
                 </div>
                 {/* Section 3 : Montants et signature */}
                 <div className="border border-slate-200 rounded-lg p-4 mb-6 bg-slate-50/50">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Montants et signature</p>
+                  <p className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-3">Montants et signature</p>
                 <div className="max-w-md ml-auto mb-4 space-y-2">
-                  <div className="flex justify-between text-sm text-slate-800">
+                  <div className="flex justify-between text-base text-slate-800">
                     <span className="font-medium">Total HT</span>
                     <span className="font-semibold">{formatCurrency(totalHT)} F CFA</span>
                   </div>
-                  <div className="flex justify-between text-sm text-slate-800">
+                  <div className="flex justify-between text-base text-slate-800">
                     <span className="font-medium">TVA (18%)</span>
                     <span className="font-semibold">{formatCurrency(tva)} F CFA</span>
                   </div>
-                  <div className={`flex justify-between text-base font-bold ${theme.totalBox} text-white px-4 py-3 rounded-lg`}>
+                  <div className={`flex justify-between text-lg font-bold ${theme.totalBox} text-white px-4 py-3 rounded-lg`}>
                     <span>Total TTC</span>
                     <span>{formatCurrency(totalTTC)} F CFA</span>
                   </div>
@@ -297,35 +297,35 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
                 {/* En-tête bordereau : CLIENT à gauche, BORDEREAU + N° + Date à droite */}
                 <div className="grid grid-cols-2 gap-8 mb-8 items-start">
                   <div>
-                    <p className={`text-sm font-bold uppercase tracking-wide mb-2 ${theme.label}`}>Client</p>
-                    <p className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
+                    <p className={`text-base font-bold uppercase tracking-wide mb-2 ${theme.label}`}>Client</p>
+                    <p className="text-lg font-semibold text-slate-900 border-b border-slate-200 pb-2">
                       {invoice.client_name || invoice.client?.name || '—'}
                     </p>
                   </div>
                   <div className="text-right flex flex-col items-end">
                     <div className={`${theme.badge} text-white px-5 py-3 rounded-lg shadow-sm w-fit`}>
-                      <p className="text-sm font-bold uppercase tracking-wide">Bordereau de livraison</p>
-                      <p className="text-sm font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
+                      <p className="text-base font-bold uppercase tracking-wide">Bordereau de livraison</p>
+                      <p className="text-base font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
                     </div>
-                    <p className="text-sm text-slate-700 mt-2 font-medium">Date : {formatDate(invoice.date)}</p>
+                    <p className="text-base text-slate-700 mt-2 font-medium">Date : {formatDate(invoice.date)}</p>
                   </div>
                 </div>
                 {/* Section 2 : Détail des prestations — SANS PRIX (bordereau = Qté + Désignation) */}
                 <div className="border border-slate-200 rounded-lg p-5 mb-6 bg-slate-50/50" style={{ pageBreakInside: 'avoid' }}>
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
+                  <p className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
                 <div className="mb-0 overflow-hidden rounded-lg">
                   <table className="w-full border-collapse text-base">
                     <thead>
                       <tr className={theme.badge}>
-                        <th className={`border px-4 py-3 text-center text-sm font-bold text-white w-24 ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Qté</th>
-                        <th className={`border px-4 py-3 text-left text-sm font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Désignation</th>
+                        <th className={`border px-4 py-3 text-center text-base font-bold text-white w-24 ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Qté</th>
+                        <th className={`border px-4 py-3 text-left text-base font-bold text-white ${isSSE ? 'border-[#c2410c]' : 'border-blue-900'}`}>Désignation</th>
                       </tr>
                     </thead>
                     <tbody>
                       {invoiceLines.map((item, index) => (
                         <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                          <td className="border border-slate-300 px-4 py-3 text-center text-sm text-slate-800">{item.quantity}</td>
-                          <td className="border border-slate-300 px-4 py-3 text-sm text-slate-900">{item.product_name || item.product_detail?.name || 'Produit non spécifié'}</td>
+                          <td className="border border-slate-300 px-4 py-3 text-center text-base text-slate-800">{item.quantity}</td>
+                          <td className="border border-slate-300 px-4 py-3 text-base text-slate-900">{item.product_name || item.product_detail?.name || 'Produit non spécifié'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -334,7 +334,7 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
                 </div>
                 {/* Signature uniquement (pas de montants sur le bordereau) */}
                 <div className="border border-slate-200 rounded-lg p-5 mb-6 bg-slate-50/50" style={{ pageBreakInside: 'avoid' }}>
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Signature</p>
+                  <p className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">Signature</p>
                 <div className="flex justify-start pt-2">
                   {company === 'NETSYSTEME' ? (
                     <StampNetsysteme />
@@ -365,7 +365,7 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
                 {company !== 'SSE' && (
                   <div className="grid grid-cols-2 gap-6 mb-6">
                     <div>
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">CLIENT</p>
+                      <p className="text-sm font-bold text-slate-600 uppercase tracking-wide mb-2">CLIENT</p>
                       <div className="border-2 border-slate-300 rounded p-4 bg-white min-h-[52px] flex items-center">
                         <p className="text-base font-semibold text-slate-900 break-words w-full">{invoice.client_name || 'Client non spécifié'}</p>
                       </div>
@@ -456,16 +456,25 @@ const InvoicePDF = ({ invoice, onClose, autoDownload = false, silent = false, he
 
       <style>{`
         .invoice-print-readability {
-          font-size: 15px;
+          font-size: 17px;
           line-height: 1.5;
           color: #1e293b;
         }
+        .invoice-print-readability .text-xs { font-size: 14px !important; }
+        .invoice-print-readability .text-sm { font-size: 16px !important; }
+        .invoice-print-readability .text-base { font-size: 18px !important; }
+        .invoice-print-readability table { font-size: 16px !important; }
+        .invoice-print-readability table th { font-size: 15px !important; }
+        .invoice-print-readability table td { font-size: 16px !important; }
         @media print {
           .no-print { display: none !important; }
           .invoice-page { page-break-after: always; }
           .invoice-page:last-child { page-break-after: auto; }
           .invoice-header-image img { max-height: 120px; }
-          .invoice-print-readability { font-size: 11pt; }
+          .invoice-print-readability { font-size: 13pt; }
+          .invoice-print-readability .text-xs { font-size: 12pt !important; }
+          .invoice-print-readability .text-sm { font-size: 12.5pt !important; }
+          .invoice-print-readability table { font-size: 12.5pt !important; }
         }
         .break-after-page { page-break-after: always; }
       `}</style>

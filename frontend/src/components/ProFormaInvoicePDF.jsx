@@ -155,7 +155,7 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
           </div>
 
           {/* Contenu de la facture pro forma — même en-tête que la facture */}
-          <div ref={invoiceRef} className="p-8 bg-white invoice-print" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+          <div ref={invoiceRef} className="p-8 bg-white invoice-print proforma-print-readability" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
             <div className="mx-auto" style={{ width: '210mm', maxWidth: '100%' }}>
               {/* Page 1 : en-tête + infos + tableau + totaux — hauteur min A4 pour que la page 2 commence après */}
               <div style={{ minHeight: '297mm' }}>
@@ -164,43 +164,43 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
               <div className="grid grid-cols-2 gap-6 mb-8">
                 <div className={`pb-3 border-b-2 ${theme.borderLight}`}>
                   <div className="inline-flex flex-col">
-                    <span className={`text-[11px] font-semibold tracking-wider uppercase ${theme.label}`}>
+                    <span className={`text-sm font-semibold tracking-wider uppercase ${theme.label}`}>
                       Client
                     </span>
-                    <span className="mt-1 text-base font-semibold text-slate-900 leading-snug">
+                    <span className="mt-1 text-lg font-semibold text-slate-900 leading-snug">
                       {invoice.client_name || invoice.client?.name || '—'}
                     </span>
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end">
                   <div className={`${theme.badge} text-white px-5 py-3 rounded-lg shadow-sm w-fit`}>
-                    <p className="text-sm font-bold uppercase tracking-wide">Pro forma</p>
-                    <p className="text-sm font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
+                    <p className="text-base font-bold uppercase tracking-wide">Pro forma</p>
+                    <p className="text-base font-bold mt-1">N° : {invoice.invoice_number || 'N/A'}</p>
                   </div>
-                  <p className="text-sm text-slate-700 mt-3 font-medium">Date : {formatDate(invoice.date)}</p>
+                  <p className="text-base text-slate-700 mt-3 font-medium">Date : {formatDate(invoice.date)}</p>
                 </div>
               </div>
 
             {/* Tableau des items */}
             <div className="border border-slate-200 rounded-lg p-5 mb-6 bg-slate-50/50" style={{ pageBreakInside: 'avoid' }}>
-              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
+              <p className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4">Détail des prestations</p>
               <div className="overflow-hidden rounded-lg">
               <table className="w-full border-collapse text-base">
                 <thead>
                   <tr className={theme.badge}>
-                    <th className={`border ${theme.tableBorder} px-4 py-3 text-left text-sm font-bold text-white`}>Désignation</th>
-                    <th className={`border ${theme.tableBorder} px-4 py-3 text-center text-sm font-bold text-white w-20`}>Qté</th>
-                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-sm font-bold text-white`}>P. Unit</th>
-                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-sm font-bold text-white`}>Total HT</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-left text-base font-bold text-white`}>Désignation</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-center text-base font-bold text-white w-20`}>Qté</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-base font-bold text-white`}>P. Unit</th>
+                    <th className={`border ${theme.tableBorder} px-4 py-3 text-right text-base font-bold text-white`}>Total HT</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoice.items?.map((item, index) => (
                     <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="border border-slate-300 px-4 py-3 text-sm text-slate-900">{item.product_name || 'Produit non spécifié'}</td>
-                      <td className="border border-slate-300 px-4 py-3 text-center text-sm text-slate-800">{item.quantity}</td>
-                      <td className="border border-slate-300 px-4 py-3 text-right text-sm text-slate-800">{formatCurrency(item.unit_price || 0)} F CFA</td>
-                      <td className="border border-slate-300 px-4 py-3 text-right text-sm font-medium text-slate-900">{formatCurrency((item.quantity || 0) * (item.unit_price || 0))} F CFA</td>
+                      <td className="border border-slate-300 px-4 py-3 text-base text-slate-900">{item.product_name || 'Produit non spécifié'}</td>
+                      <td className="border border-slate-300 px-4 py-3 text-center text-base text-slate-800">{item.quantity}</td>
+                      <td className="border border-slate-300 px-4 py-3 text-right text-base text-slate-800">{formatCurrency(item.unit_price || 0)} F CFA</td>
+                      <td className="border border-slate-300 px-4 py-3 text-right text-base font-medium text-slate-900">{formatCurrency((item.quantity || 0) * (item.unit_price || 0))} F CFA</td>
                     </tr>
                   ))}
                 </tbody>
@@ -212,15 +212,15 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
             <div className="flex justify-end mb-6 relative" style={{ pageBreakInside: 'avoid' }}>
               <div className="w-80 bg-slate-100 p-4 rounded-lg border border-slate-200">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-slate-700">
+                  <div className="flex justify-between text-base text-slate-700">
                     <span className="font-medium">Total HT:</span>
                     <span className="font-semibold">{formatCurrency(totalHT)} F CFA</span>
                   </div>
-                  <div className="flex justify-between text-sm text-slate-700">
+                  <div className="flex justify-between text-base text-slate-700">
                     <span className="font-medium">TVA (18%):</span>
                     <span className="font-semibold">{formatCurrency(tva)} F CFA</span>
                   </div>
-                  <div className={`flex justify-between text-base font-bold ${theme.totalBox} text-white px-4 py-3 rounded-lg mt-2`}>
+                  <div className={`flex justify-between text-lg font-bold ${theme.totalBox} text-white px-4 py-3 rounded-lg mt-2`}>
                     <span>Total TTC</span>
                     <span>{formatCurrency(totalTTC)} F CFA</span>
                   </div>
@@ -235,10 +235,10 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
 
             {/* ========== PAGE 2 : CONDITIONS COMMERCIALES / CONDITIONS GÉNÉRALES ========== */}
             <div className={`mt-8 pt-6 border-t-2 ${theme.borderLight} mb-8`} style={{ pageBreakBefore: 'always' }}>
-              <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">
+              <h3 className="text-base font-bold text-slate-800 mb-3 uppercase tracking-wider">
                 Conditions générales / commerciales
               </h3>
-              <div className="min-h-[100px] border border-slate-200 rounded-lg p-4 bg-slate-50 text-xs text-slate-700 space-y-2">
+              <div className="min-h-[100px] border border-slate-200 rounded-lg p-4 bg-slate-50 text-sm text-slate-700 space-y-2">
                 <p>
                   <span className="font-semibold">Validité :</span>{' '}
                   Cette facture pro forma est valable à compter de la date d&apos;émission mentionnée ci-dessus,
@@ -267,28 +267,28 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
 
             {/* Section BON POUR ACCORD */}
             <div className={`mt-8 pt-6 border-t-2 ${theme.borderLight} mb-8`}>
-              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider">Bon pour accord</h3>
+              <h3 className="text-base font-bold text-slate-800 mb-4 uppercase tracking-wider">Bon pour accord</h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Pour un montant total de:</span>
+                  <span className="text-base text-gray-700 font-medium">Pour un montant total de:</span>
                   <div className="flex-1 border-b-2 border-gray-400 border-dotted min-h-[20px]"></div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm text-gray-700 font-medium">Date:</span>
+                    <span className="text-base text-gray-700 font-medium">Date:</span>
                     <div className="flex-1 border-2 border-gray-300 rounded p-2 min-h-[36px] bg-white"></div>
                   </div>
                   <div className="flex items-center gap-2 flex-1">
-                    <span className="text-sm text-gray-700 font-medium">Nom:</span>
+                    <span className="text-base text-gray-700 font-medium">Nom:</span>
                     <div className="flex-1 border-2 border-gray-300 rounded p-2 min-h-[36px] bg-white"></div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Signature et cachet:</span>
+                  <span className="text-base text-gray-700 font-medium">Signature et cachet:</span>
                   <div className="flex-1 border-b-2 border-gray-400 border-dotted min-h-[20px]"></div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Mode de règlement:</span>
+                  <span className="text-base text-gray-700 font-medium">Mode de règlement:</span>
                   <div className="flex-1 border-b-2 border-gray-400 border-dotted min-h-[20px]"></div>
                 </div>
               </div>
@@ -305,6 +305,17 @@ const ProFormaInvoicePDF = ({ invoice, onClose, autoDownload = false, silent = f
               <DocumentFooter company={company} />
             </div>
           </div>
+          <style>{`
+            .proforma-print-readability { font-size: 17px; line-height: 1.5; color: #1e293b; }
+            .proforma-print-readability .text-xs { font-size: 14px !important; }
+            .proforma-print-readability .text-sm { font-size: 16px !important; }
+            .proforma-print-readability table { font-size: 16px !important; }
+            .proforma-print-readability table th,
+            .proforma-print-readability table td { font-size: 16px !important; }
+            @media print {
+              .proforma-print-readability { font-size: 13pt; }
+            }
+          `}</style>
         </div>
       </div>
     </div>

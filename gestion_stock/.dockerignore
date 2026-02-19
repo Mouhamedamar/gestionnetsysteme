@@ -1,0 +1,32 @@
+# Sous-projets et dossiers hors app
+gestion de plaint
+*.rar
+db.rar
+
+# Env local (utiliser variables ou fichier monté en prod)
+.env
+.env.*
+!.env.example
+
+# Base de données et médias (volumes en prod)
+db.sqlite3
+media/
+staticfiles/
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+.eggs
+.venv
+venv
+env
+
+# Git / IDE
+.git
+.gitignore
+*.md
+.DS_Store

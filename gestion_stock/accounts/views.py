@@ -61,6 +61,7 @@ def login(request):
             'username': user.username,
             'email': user.email,
             'role': role,
+            'is_staff': user.is_staff,
             'page_permissions': page_permissions,
             'profile': {
                 'role': role,

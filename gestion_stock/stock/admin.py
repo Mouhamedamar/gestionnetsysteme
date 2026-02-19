@@ -4,14 +4,15 @@ from .models import StockMovement, StockNotificationRecipient, StockAlertSetting
 
 @admin.register(StockNotificationRecipient)
 class StockNotificationRecipientAdmin(admin.ModelAdmin):
-    list_display = ['name', 'phone', 'is_active', 'created_at']
+    list_display = ['name', 'phone', 'email', 'is_active', 'created_at']
     list_filter = ['is_active']
-    search_fields = ['name', 'phone']
+    search_fields = ['name', 'phone', 'email']
+    list_editable = ['is_active']
 
 
 @admin.register(StockAlertSettings)
 class StockAlertSettingsAdmin(admin.ModelAdmin):
-    list_display = ['alert_threshold', 'updated_at']
+    list_display = ['alert_threshold', 'reminder_interval_days', 'last_reminder_sent_at', 'updated_at']
 
 
 @admin.register(StockMovement)

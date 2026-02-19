@@ -1,15 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mockProducts, mockStockMovements, mockDashboardStats } from '../data/mockData';
+import { isConnectionError, CONNECTION_ERROR_MESSAGE } from '../utils/errorHandler';
 
 import { API_BASE_URL, USE_API } from '../config';
 const BASE_URL = API_BASE_URL;
-
-function isConnectionError(err) {
-  return (
-    err?.message === 'Failed to fetch' ||
-    (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('fetch'))
-  );
-}
 
 const AppContext = createContext();
 
@@ -42,6 +36,8 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const backendUnreachableNotifiedRef = useRef(false);
+  const dashboardStatsFetchingRef = useRef(false);
+  const dashboardChartsFetchingRef = useRef(false);
 
   // Simuler le chargement
   const simulateLoading = (callback, delay = 500) => {
@@ -266,21 +262,16 @@ export const AppProvider = ({ children }) => {
           (error?.name === 'TypeError' && String(error?.message || '').toLowerCase().includes('fetch'));
         if (isConnectionRefused && !backendUnreachableNotifiedRef.current) {
           backendUnreachableNotifiedRef.current = true;
-          console.warn(
-            '[apiCall] Backend injoignable (' +
-              BASE_URL +
-              '). Démarrez le serveur Django (python manage.py runserver) pour utiliser l\'API.'
-          );
+          console.warn('[apiCall] Backend injoignable:', BASE_URL);
           setNotification({
-            message:
-              'Backend indisponible. Démarrez le serveur Django (port 8000) pour les données réelles.',
+            message: CONNECTION_ERROR_MESSAGE,
             type: 'error'
           });
-          setTimeout(() => setNotification(null), 8000);
+          setTimeout(() => setNotification(null), 10000);
         } else if (!isConnectionRefused) {
           console.error('[apiCall] Fetch error:', error);
         }
-        throw error;
+        throw new Error(CONNECTION_ERROR_MESSAGE);
       }
     },
     [accessToken, refreshToken]
@@ -487,15 +478,22 @@ export const AppProvider = ({ children }) => {
     }
   }, [loggedIn, accessToken, refreshToken]);
 
-  // Charger les statistiques du dashboard depuis l'API
-  const fetchDashboardStats = useCallback(async () => {
+  // Charger les statistiques du dashboard depuis l'API (options.silent = true pour rafraîchir sans afficher le loader)
+  const fetchDashboardStats = useCallback(async (options = {}) => {
     if (!USE_API) return;
     if (!loggedIn) return;
+    if (dashboardStatsFetchingRef.current) return;
+    dashboardStatsFetchingRef.current = true;
+
+    const silent = options.silent === true;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = accessToken || localStorage.getItem('accessToken');
-      if (!token) return;
+      if (!token) {
+        dashboardStatsFetchingRef.current = false;
+        return;
+      }
 
       const headers = {
         'Content-Type': 'application/json',
@@ -519,6 +517,13 @@ export const AppProvider = ({ children }) => {
             top_products: []
           });
           return;
+        }
+
+        if (response.status === 500) {
+          const errBody = await response.json().catch(() => ({}));
+          const msg = errBody.detail || errBody.message || 'Erreur serveur';
+          console.error('Dashboard stats 500:', errBody);
+          throw new Error(msg);
         }
         
         if (response.status === 401) {
@@ -561,7 +566,9 @@ export const AppProvider = ({ children }) => {
           }
           throw new Error('Session expirée');
         }
-        throw new Error('Erreur lors du chargement des statistiques du dashboard');
+        const errBody = await response.json().catch(() => ({}));
+        const msg = errBody.detail || errBody.message || 'Erreur lors du chargement des statistiques du dashboard';
+        throw new Error(msg);
       }
 
       const data = await response.json();
@@ -576,10 +583,11 @@ export const AppProvider = ({ children }) => {
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
       } else {
-        showNotification('Erreur lors du chargement des statistiques du dashboard', 'error');
+        showNotification(error.message || 'Erreur lors du chargement des statistiques du dashboard', 'error');
       }
     } finally {
-      setLoading(false);
+      dashboardStatsFetchingRef.current = false;
+      if (!silent) setLoading(false);
     }
   }, [loggedIn, accessToken, refreshToken]);
 
@@ -689,10 +697,15 @@ export const AppProvider = ({ children }) => {
   const fetchDashboardCharts = useCallback(async () => {
     if (!USE_API) return;
     if (!loggedIn) return;
+    if (dashboardChartsFetchingRef.current) return;
+    dashboardChartsFetchingRef.current = true;
 
     try {
       const token = accessToken || localStorage.getItem('accessToken');
-      if (!token) return;
+      if (!token) {
+        dashboardChartsFetchingRef.current = false;
+        return;
+      }
 
       const headers = {
         'Content-Type': 'application/json',
@@ -775,6 +788,8 @@ export const AppProvider = ({ children }) => {
       } else {
         showNotification('Erreur lors du chargement des données des graphiques', 'error');
       }
+    } finally {
+      dashboardChartsFetchingRef.current = false;
     }
   }, [loggedIn, accessToken, refreshToken]);
 
@@ -1948,6 +1963,8 @@ export const AppProvider = ({ children }) => {
     fetchExpenses,
     fetchClients,
     fetchUsers,
+    fetchDashboardStats,
+    fetchDashboardCharts,
     addProduct,
     updateProduct,
     deleteProduct,

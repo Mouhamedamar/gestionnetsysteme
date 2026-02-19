@@ -14,6 +14,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Charger .env depuis le dossier gestion_stock/ (où se trouve manage.py)
 _env_path = BASE_DIR / '.env'
+
+def _load_dotenv_into_environ(path):
+    """Charge les lignes KEY=VALUE du .env dans os.environ (pour fiabilité email, etc.)."""
+    try:
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, _, v = line.partition('=')
+                        k, v = k.strip(), v.strip()
+                        if k and v and k not in os.environ:
+                            os.environ[k] = v
+    except Exception:
+        pass
+
+_load_dotenv_into_environ(_env_path)
+
 try:
     from decouple import Config, RepositoryEnv
     _env_config = Config(RepositoryEnv(str(_env_path))) if _env_path.exists() else Config()
@@ -26,8 +44,11 @@ except (ImportError, Exception):
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-prod')
 
 # Mode développement local : activer DEBUG et autoriser localhost
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+# En Docker : DEBUG=0, ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,backend
+_debug_env = os.environ.get('DEBUG', '')
+DEBUG = _debug_env.lower() in ('1', 'true', 'yes') if _debug_env else True
+_allowed = os.environ.get('ALLOWED_HOSTS', '').strip()
+ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()] if _allowed else ['localhost', '127.0.0.1', '0.0.0.0']
 DEFAULT_HOST = os.environ.get('DEFAULT_HOST', 'localhost:8000')
 
 # =============================
@@ -104,9 +125,12 @@ TEMPLATES = [
 # =============================
 # DATABASE
 # =============================
-# En production : définir DATABASE_URL (ex: postgresql://user:pass@host:5432/dbname)
-# et installer : pip install dj-database-url psycopg2-binary
+# MySQL : DATABASE_URL=mysql://user:pass@host:3306/dbname (PyMySQL)
+# PostgreSQL : DATABASE_URL=postgres://... (psycopg2-binary)
 _database_url = os.environ.get('DATABASE_URL', '').strip()
+if _database_url and _database_url.startswith('mysql'):
+    import pymysql
+    pymysql.install_as_MySQLdb()
 if _database_url:
     try:
         import dj_database_url
@@ -120,10 +144,12 @@ if _database_url:
             }
         }
 else:
+    _data_dir = os.environ.get('DATA_DIR', '').strip()
+    _db_path = Path(_data_dir) / 'db.sqlite3' if _data_dir else BASE_DIR / 'db.sqlite3'
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'NAME': _db_path,
         }
     }
 
@@ -150,7 +176,8 @@ USE_TZ = True
 # =============================
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+_data_dir_media = os.environ.get('DATA_DIR', '').strip()
+MEDIA_ROOT = Path(_data_dir_media) / 'media' if _data_dir_media else BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -223,20 +250,34 @@ SWAGGER_SETTINGS = {
 }
 
 # =============================
-# EMAIL (notifications assignation technicien)
+# EMAIL (notifications stock, assignation technicien, etc.)
 # =============================
-# En dev : emails affichés dans la console (EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend')
-# En prod : configurer SMTP (EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
-EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend'
-)
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@gestion-stock.local')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+# Lecture .env + variables d'environnement (au cas où le .env n'est pas chargé par decouple)
+def _email_config(key, default=''):
+    v = env_config(key, default=default)
+    if v == default or (default == '' and not v):
+        v = os.environ.get(key, default)
+    return v
+
+EMAIL_HOST = _email_config('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(_email_config('EMAIL_PORT', '587') or '587')
+EMAIL_USE_TLS = _email_config('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_USE_SSL = _email_config('EMAIL_USE_SSL', 'false').lower() == 'true'
+EMAIL_HOST_USER = (_email_config('EMAIL_HOST_USER', '') or '').strip()
+EMAIL_HOST_PASSWORD = (_email_config('EMAIL_HOST_PASSWORD', '') or '').strip()
+DEFAULT_FROM_EMAIL = (_email_config('DEFAULT_FROM_EMAIL', '') or '').strip() or 'noreply@gestion-stock.local'
+if not DEFAULT_FROM_EMAIL or DEFAULT_FROM_EMAIL == 'noreply@gestion-stock.local':
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'noreply@gestion-stock.local'
+
+# Utiliser SMTP si backend=smtp OU si identifiants fournis (pour que les emails partent vraiment)
+_email_backend = _email_config('EMAIL_BACKEND', 'console').strip().lower()
+_has_smtp_creds = bool(EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
+if _email_backend == 'smtp' or _has_smtp_creds:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_TIMEOUT = int(_email_config('EMAIL_TIMEOUT', '10') or '10')
 
 # =============================
 # SMS – API Orange (Sénégal) – NETSYSTEME et SSE
