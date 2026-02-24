@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, UserProfile
+from .models import Client, Prospect, UserProfile
 from django.contrib.auth.models import User
 
 
@@ -11,6 +11,7 @@ class ClientSerializer(serializers.ModelSerializer):
         model = Client
         fields = [
             'id', 'name', 'first_name', 'last_name', 'phone', 'email', 'address',
+            'company', 'client_type', 'is_blacklisted', 'observation',
             'rccm_number', 'registration_number', 'ninea_number',
             'created_at', 'updated_at',
         ]
@@ -28,6 +29,27 @@ class ClientSerializer(serializers.ModelSerializer):
             if qs.exists():
                 raise serializers.ValidationError("A client with this email already exists.")
         return value
+
+
+class ProspectSerializer(serializers.ModelSerializer):
+    """
+    Serializer pour le modèle Prospect.
+    """
+
+    class Meta:
+        model = Prospect
+        fields = [
+            'id',
+            'name',
+            'email',
+            'phone',
+            'company',
+            'status',
+            'observation',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -53,7 +75,7 @@ class UserSerializer(serializers.ModelSerializer):
     page_permissions_read = serializers.SerializerMethodField()
     # Permettre d'écrire le rôle directement
     role_write = serializers.ChoiceField(
-        choices=['admin', 'technicien', 'commercial'],
+        choices=['admin', 'technicien', 'commercial', 'pointage_only'],
         write_only=True,
         required=False,
         allow_blank=True
@@ -161,10 +183,13 @@ class UserSerializer(serializers.ModelSerializer):
         if not password:
             raise serializers.ValidationError({"password": "Le mot de passe est requis pour créer un utilisateur."})
         
-        # Si admin, s'assurer que is_staff=True
+        # Si admin, s'assurer que is_staff=True ; si pointage_only, pas d'accès Django admin
         if role == 'admin':
             validated_data['is_staff'] = True
             validated_data['is_superuser'] = True
+        elif role == 'pointage_only':
+            validated_data['is_staff'] = False
+            validated_data['is_superuser'] = False
         
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
@@ -225,10 +250,13 @@ class UserSerializer(serializers.ModelSerializer):
                 profile.page_permissions = page_permissions if len(page_permissions) > 0 else None
                 profile.save()
         
-        # Si admin, s'assurer que is_staff=True
+        # Si admin, is_staff=True ; si pointage_only, pas d'accès Django admin
         if role == 'admin':
             instance.is_staff = True
             instance.is_superuser = True
+        elif role == 'pointage_only':
+            instance.is_staff = False
+            instance.is_superuser = False
         
         instance.save()
         return instance

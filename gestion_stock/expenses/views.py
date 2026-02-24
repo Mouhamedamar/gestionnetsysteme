@@ -23,7 +23,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description', 'supplier', 'receipt_number']
-    filterset_fields = ['category', 'status']
+    filterset_fields = ['category', 'status', 'site']
     ordering_fields = ['date', 'amount', 'created_at']
     ordering = ['-date', '-created_at']
     

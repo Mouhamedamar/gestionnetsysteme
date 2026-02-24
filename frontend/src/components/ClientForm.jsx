@@ -7,7 +7,10 @@ const ClientForm = ({ client, onClose, onSave }) => {
     name: '',
     phone: '',
     email: '',
-    address: ''
+    address: '',
+    company: '',
+    client_type: 'CLIENT',
+    observation: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -17,14 +20,20 @@ const ClientForm = ({ client, onClose, onSave }) => {
         name: client.name || '',
         phone: client.phone || '',
         email: client.email || '',
-        address: client.address || ''
+        address: client.address || '',
+        company: client.company || '',
+        client_type: 'CLIENT',
+        observation: client.observation || ''
       });
     } else {
       setFormData({
         name: '',
         phone: '',
         email: '',
-        address: ''
+        address: '',
+        company: '',
+        client_type: 'CLIENT',
+        observation: ''
       });
     }
   }, [client]);
@@ -99,6 +108,21 @@ const ClientForm = ({ client, onClose, onSave }) => {
       </div>
 
       <div>
+        <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">
+          Entreprise
+        </label>
+        <input
+          type="text"
+          id="company"
+          name="company"
+          value={formData.company}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Nom de l'entreprise"
+        />
+      </div>
+
+      <div>
         <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
           Téléphone
         </label>
@@ -143,6 +167,21 @@ const ClientForm = ({ client, onClose, onSave }) => {
           rows={3}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Entrez l'adresse du client"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="observation" className="block text-sm font-medium text-gray-700 mb-1">
+          Observation
+        </label>
+        <textarea
+          id="observation"
+          name="observation"
+          value={formData.observation}
+          onChange={handleChange}
+          rows={2}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Notes de suivi (ex: rappeler plus tard, pas intéressé)"
         />
       </div>
 

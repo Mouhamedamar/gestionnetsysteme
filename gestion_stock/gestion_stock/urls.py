@@ -15,7 +15,12 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+
+# Titres de l'admin Django (sans toucher au code)
+admin.site.site_header = 'Gestion Stock – Administration'
+admin.site.site_title = 'Gestion Stock – Admin'
+admin.site.index_title = 'Administration'
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -23,6 +28,8 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
 from . import dashboard_views
+from django.views.generic import TemplateView
+from django.views.static import serve
 
 # Swagger/OpenAPI Schema
 schema_view = get_schema_view(
@@ -39,6 +46,9 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    # Frontend (React app) - Serve index.html for root path
+    path('', TemplateView.as_view(template_name='index.html'), name='frontend-home'),
+    
     # Admin
     path('admin/', admin.site.urls),
     
@@ -65,7 +75,25 @@ urlpatterns = [
     path('api/dashboard/charts/', dashboard_views.dashboard_charts, name='dashboard-charts'),
 ]
 
-# Serve media files in development
+# Serve static and media files in both development and production
+urlpatterns += [
+    path('static/<path:path>', serve, {'document_root': settings.STATIC_ROOT}),
+    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+    # Serve logo directly from staticfiles (fix for React absolute paths)
+    path('logo-netsysteme.png', serve, {'document_root': settings.STATIC_ROOT, 'path': 'logo-netsysteme.png'}),
+    path('stamp-netsysteme.png', serve, {'document_root': settings.STATIC_ROOT, 'path': 'stamp-netsysteme.png'}),
+    path('stamp-sse.png', serve, {'document_root': settings.STATIC_ROOT, 'path': 'stamp-sse.png'}),
+    path('invoice-header.png', serve, {'document_root': settings.STATIC_ROOT, 'path': 'invoice-header.png'}),
+    path('invoice-header-sse.png', serve, {'document_root': settings.STATIC_ROOT, 'path': 'invoice-header-sse.png'}),
+]
+
+# Catch-all pattern for React app (must be last)
+# This will serve index.html for any path that doesn't match the above patterns
+urlpatterns += [
+    re_path(r'^.*$', TemplateView.as_view(template_name='index.html'), name='catch-all'),
+]
+
+# Additional development static serving (if needed)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

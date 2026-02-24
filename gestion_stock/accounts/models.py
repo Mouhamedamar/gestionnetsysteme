@@ -11,6 +11,7 @@ class UserProfile(models.Model):
         ('admin', 'Administrateur'),
         ('technicien', 'Technicien'),
         ('commercial', 'Commercial'),
+        ('pointage_only', 'Administration (pointage seul)'),
     ]
 
     user = models.OneToOneField(
@@ -119,19 +120,50 @@ class UserProfile(models.Model):
             return ['/', '/interventions', '/pointage']
         elif self.role == 'commercial':
             return ['/clients', '/interventions', '/pointage']
+        elif self.role == 'pointage_only':
+            return ['/', '/pointage']
         return []
 
 
 class Client(models.Model):
     """
-    Model for managing clients
+    Model for managing clients and prospects.
     """
+    TYPE_PROSPECT = 'PROSPECT'
+    TYPE_CLIENT = 'CLIENT'
+    TYPE_CHOICES = [
+        (TYPE_PROSPECT, 'Prospect'),
+        (TYPE_CLIENT, 'Client'),
+    ]
+
     name = models.CharField(max_length=200, verbose_name="Nom du client")
     first_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Prénom")
     last_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nom")
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone")
     email = models.EmailField(blank=True, null=True, verbose_name="Email")
     address = models.TextField(blank=True, null=True, verbose_name="Adresse")
+    company = models.CharField(
+        max_length=200, blank=True, null=True,
+        verbose_name="Entreprise",
+        help_text="Nom de l'entreprise"
+    )
+    client_type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default=TYPE_PROSPECT,
+        verbose_name="Type",
+        help_text="Prospect ou Client"
+    )
+    is_blacklisted = models.BooleanField(
+        default=False,
+        verbose_name="Blacklisté",
+        help_text="Ne plus contacter ce prospect/client"
+    )
+    observation = models.TextField(
+        blank=True, null=True,
+        verbose_name="Observation",
+        help_text="Notes de suivi (ex: n'est pas intéressé, rappeler plus tard)"
+    )
     rccm_number = models.CharField(
         max_length=100, blank=True, null=True,
         verbose_name="Numéro RCCM",
@@ -152,6 +184,57 @@ class Client(models.Model):
     class Meta:
         verbose_name = "Client"
         verbose_name_plural = "Clients"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class Prospect(models.Model):
+    """
+    Modèle pour gérer les prospects (avant conversion en client).
+    """
+    STATUS_NEW = 'new'
+    STATUS_CONTACTED = 'contacted'
+    STATUS_CONVERTED = 'converted'
+    STATUS_LOST = 'lost'
+
+    STATUS_CHOICES = [
+        (STATUS_NEW, 'Nouveau'),
+        (STATUS_CONTACTED, 'Contacté'),
+        (STATUS_CONVERTED, 'Converti'),
+        (STATUS_LOST, 'Perdu'),
+    ]
+
+    name = models.CharField(max_length=200, verbose_name="Nom")
+    email = models.EmailField(blank=True, null=True, verbose_name="Email")
+    phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone")
+    company = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        verbose_name="Entreprise",
+        help_text="Nom de l'entreprise ou du contact"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NEW,
+        verbose_name="Statut",
+        help_text="Statut du prospect dans le tunnel commercial"
+    )
+    observation = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observation",
+        help_text="Notes de suivi (ex: rappeler plus tard, pas intéressé)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Date de modification")
+
+    class Meta:
+        verbose_name = "Prospect"
+        verbose_name_plural = "Prospects"
         ordering = ['-created_at']
 
     def __str__(self):

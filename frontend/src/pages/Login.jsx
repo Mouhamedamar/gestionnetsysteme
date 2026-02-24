@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { getErrorMessage, CONNECTION_ERROR_MESSAGE } from '../utils/errorHandler';
 import { 
   User, 
   Lock, 
   LogIn, 
   AlertCircle, 
   Loader2,
-  Settings,
   Sparkles
 } from 'lucide-react';
 
@@ -34,7 +34,7 @@ const Login = () => {
       await login(username, password);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'Erreur lors de la connexion');
+      setError(getErrorMessage(err, 'Erreur lors de la connexion'));
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +75,16 @@ const Login = () => {
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-red-800">{error}</p>
+                {error === CONNECTION_ERROR_MESSAGE && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Dans le dossier du projet : <code className="bg-red-100/80 px-1.5 py-0.5 rounded">gestion_stock</code>, exécutez : <code className="bg-red-100/80 px-1.5 py-0.5 rounded">python manage.py runserver</code>
+                  </p>
+                )}
+                {(error === 'Identifiants invalides' || error.toLowerCase().includes('identifiants')) && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Vérifiez le nom d&apos;utilisateur et le mot de passe. Si le compte existe, assurez-vous qu&apos;il est actif (Admin Django → Utilisateurs).
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -165,17 +175,10 @@ const Login = () => {
 
           {/* Footer links */}
           <div className="mt-8 pt-6 border-t border-slate-200/50">
-            <div className="text-center space-y-3">
+            <div className="text-center">
               <p className="text-xs text-slate-500 font-medium">
                 Connexion sécurisée via JWT
               </p>
-              <button
-                onClick={() => navigate('/installation')}
-                className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-semibold transition-colors group"
-              >
-                <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
-                <span>Configuration initiale</span>
-              </button>
             </div>
           </div>
         </div>
@@ -183,7 +186,7 @@ const Login = () => {
         {/* Additional info card */}
         <div className="mt-6 glass-card border-white/40 shadow-xl p-4 text-center">
           <p className="text-xs text-slate-500">
-            © 2024 - Système de gestion intégré
+            © 2025 - Système de gestion intégré
           </p>
         </div>
       </div>

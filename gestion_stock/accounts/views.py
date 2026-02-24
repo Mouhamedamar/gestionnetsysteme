@@ -61,6 +61,7 @@ def login(request):
             'username': user.username,
             'email': user.email,
             'role': role,
+            'is_staff': user.is_staff,
             'page_permissions': page_permissions,
             'profile': {
                 'role': role,
@@ -193,11 +194,16 @@ def change_password(request):
 
 
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from .models import Client
-from .serializers import ClientSerializer, UserSerializer
+from django.http import HttpResponse
+from .models import Client, Prospect
+from .serializers import ClientSerializer, ProspectSerializer, UserSerializer
+import openpyxl
+from io import BytesIO
 
 
 @api_view(['GET'])
@@ -253,10 +259,190 @@ def check_installation(request):
         messages['database'] = f'Erreur générale: {str(e)}'
     
     return Response({
-        'installed': checks['admin_exists'],
+        'installed': True,  # Forcer à True pour désactiver le mode démo
         'checks': checks,
         'messages': messages
     }, status=status.HTTP_200_OK)
+
+
+class ProspectViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour la gestion des prospects (avant conversion en client).
+    """
+    queryset = Prospect.objects.all()
+    serializer_class = ProspectSerializer
+    permission_classes = [IsAdminOrTechnicienOrCommercial]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status']
+    search_fields = ['name', 'email', 'phone', 'company']
+    ordering_fields = ['created_at', 'name', 'status']
+    ordering = ['-created_at']
+
+    @action(detail=True, methods=['post'])
+    def convert_to_client(self, request, pk=None):
+        """
+        Convertit un prospect en client.
+        - Crée (ou réutilise) un client à partir des infos du prospect.
+        - Marque le prospect comme converti.
+        """
+        prospect = self.get_object()
+        if prospect.status == Prospect.STATUS_CONVERTED:
+            return Response(
+                {'detail': 'Ce prospect est déjà converti.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        client_defaults = {
+            'name': prospect.name,
+            'phone': prospect.phone,
+            'email': prospect.email,
+            'company': prospect.company,
+            'client_type': Client.TYPE_CLIENT,
+        }
+
+        if prospect.email:
+            client, created = Client.objects.get_or_create(
+                email=prospect.email,
+                defaults=client_defaults,
+            )
+        else:
+            client = Client.objects.create(**client_defaults)
+            created = True
+
+        prospect.status = Prospect.STATUS_CONVERTED
+        prospect.save(update_fields=['status'])
+
+        client_data = ClientSerializer(client).data
+        return Response(
+            client_data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'])
+    def blacklist(self, request, pk=None):
+        """
+        Blacklister un prospect : crée ou réutilise un client is_blacklisted=True
+        et marque le prospect comme perdu.
+        """
+        prospect = self.get_object()
+        client_defaults = {
+            'name': prospect.name,
+            'phone': prospect.phone,
+            'email': prospect.email,
+            'company': prospect.company,
+            'client_type': Client.TYPE_CLIENT,
+            'is_blacklisted': True,
+        }
+
+        if prospect.email:
+            client, _ = Client.objects.get_or_create(
+                email=prospect.email,
+                defaults=client_defaults,
+            )
+            # si le client existait déjà, on s'assure qu'il est bien blacklisté
+            if not client.is_blacklisted:
+                client.is_blacklisted = True
+                client.save(update_fields=['is_blacklisted', 'updated_at'])
+        else:
+            client = Client.objects.create(**client_defaults)
+
+        prospect.status = Prospect.STATUS_LOST
+        prospect.save(update_fields=['status'])
+
+        return Response(ClientSerializer(client).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='import-excel', parser_classes=[MultiPartParser, FormParser])
+    def import_excel(self, request):
+        """
+        Importer des prospects depuis un fichier Excel (.xlsx).
+        Colonnes reconnues (noms possibles) :
+        - nom / name
+        - email / mail
+        - téléphone / telephone / phone / tel
+        - entreprise / company / societe
+        - statut / status (new, contacted, converted, lost)
+        """
+        file = request.FILES.get('file')
+        if not file:
+            return Response(
+                {'error': 'Aucun fichier envoyé. Envoyez un fichier avec la clé \"file\".'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not file.name.endswith(('.xlsx', '.xls')):
+            return Response(
+                {'error': 'Format non supporté. Utilisez un fichier .xlsx.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            wb = openpyxl.load_workbook(filename=file, read_only=True, data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+        except Exception as e:
+            return Response(
+                {'error': f'Fichier Excel invalide: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not rows:
+            return Response(
+                {'error': 'Le fichier est vide.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        header = [str(c).strip().lower() if c else '' for c in rows[0]]
+        created = 0
+        errors = []
+
+        def col(row, name_aliases):
+            for na in name_aliases:
+                try:
+                    idx = header.index(na)
+                    if idx < len(row) and row[idx] is not None:
+                        return str(row[idx]).strip() or None
+                except ValueError:
+                    continue
+            return None
+
+        for i, row in enumerate(rows[1:], start=2):
+            if not any(v for v in row):
+                continue
+
+            name = col(row, ['nom', 'name', 'nom complet']) or ''
+
+            email = col(row, ['email', 'mail'])
+            phone = col(row, ['telephone', 'phone', 'téléphone', 'tel'])
+            company = col(row, ['entreprise', 'company', 'societe'])
+            status_str = (col(row, ['statut', 'status']) or '').lower()
+
+            if status_str in ['new', 'nouveau']:
+                status_value = Prospect.STATUS_NEW
+            elif status_str in ['contacted', 'contacte', 'contacté']:
+                status_value = Prospect.STATUS_CONTACTED
+            elif status_str in ['converted', 'converti']:
+                status_value = Prospect.STATUS_CONVERTED
+            elif status_str in ['lost', 'perdu']:
+                status_value = Prospect.STATUS_LOST
+            else:
+                status_value = Prospect.STATUS_NEW
+
+            Prospect.objects.create(
+                name=(name or 'Prospect importé')[:200],
+                email=email or None,
+                phone=phone or None,
+                company=company or None,
+                status=status_value,
+            )
+            created += 1
+
+        wb.close()
+        return Response(
+            {
+                'created': created,
+                'message': f'{created} prospect(s) importé(s).',
+                'errors': errors[:50],
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @api_view(['POST'])
@@ -323,15 +509,163 @@ def setup_admin(request):
 
 class ClientViewSet(viewsets.ModelViewSet):
     """
-    ViewSet pour la gestion des clients
+    ViewSet pour la gestion des clients et prospects.
+    Filtres: client_type (PROSPECT, CLIENT), is_blacklisted.
+    Actions: convert_to_client, blacklist, export_excel, import_excel.
     """
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAdminOrTechnicienOrCommercial]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'email', 'phone']
+    filterset_fields = ['client_type', 'is_blacklisted']
+    search_fields = ['name', 'email', 'phone', 'company']
     ordering_fields = ['name', 'created_at', 'updated_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Par défaut : uniquement les vrais clients (exclut PROSPECT).
+        Si ?all=1 ou ?include_prospects=1 : retourne tous les contacts du modèle Client.
+        """
+        qs = super().get_queryset()
+        include_prospects = self.request.query_params.get('all') == '1' or \
+                            self.request.query_params.get('include_prospects') == '1'
+        if include_prospects:
+            return qs
+        return qs.exclude(client_type=Client.TYPE_PROSPECT)
+
+    @action(detail=True, methods=['post'])
+    def convert_to_client(self, request, pk=None):
+        """Passe un prospect en client."""
+        client = self.get_object()
+        if client.client_type == Client.TYPE_CLIENT:
+            return Response(
+                {'detail': 'Ce contact est déjà un client.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        client.client_type = Client.TYPE_CLIENT
+        client.is_blacklisted = False
+        client.save(update_fields=['client_type', 'is_blacklisted', 'updated_at'])
+        serializer = self.get_serializer(client)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def blacklist(self, request, pk=None):
+        """Met le contact en blacklist (ne plus contacter)."""
+        client = self.get_object()
+        client.is_blacklisted = True
+        client.save(update_fields=['is_blacklisted', 'updated_at'])
+        serializer = self.get_serializer(client)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='export-excel')
+    def export_excel(self, request):
+        """Exporte la liste des clients/prospects en fichier Excel (filtres appliqués)."""
+        queryset = self.filter_queryset(self.get_queryset())
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Clients'
+        headers = [
+            'ID', 'Nom', 'Prénom', 'Nom (famille)', 'Téléphone', 'Email', 'Adresse',
+            'Entreprise', 'Type', 'Blacklisté', 'Observation',
+            'RCCM', 'N° Immatriculation', 'NINEA', 'Créé le', 'Modifié le'
+        ]
+        ws.append(headers)
+        for c in queryset:
+            ws.append([
+                c.id, c.name or '', c.first_name or '', c.last_name or '', c.phone or '', c.email or '',
+                c.address or '', c.company or '', c.get_client_type_display() or c.client_type,
+                'Oui' if c.is_blacklisted else 'Non', (c.observation or '')[:500],
+                c.rccm_number or '', c.registration_number or '', c.ninea_number or '',
+                c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '',
+                c.updated_at.strftime('%Y-%m-%d %H:%M') if c.updated_at else '',
+            ])
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="clients.xlsx"'
+        return response
+
+    @action(detail=False, methods=['post'], url_path='import-excel', parser_classes=[MultiPartParser, FormParser])
+    def import_excel(self, request):
+        """Importe des prospects/clients depuis un fichier Excel (.xlsx)."""
+        file = request.FILES.get('file')
+        if not file:
+            return Response(
+                {'error': 'Aucun fichier envoyé. Envoyez un fichier avec la clé "file".'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not file.name.endswith(('.xlsx', '.xls')):
+            return Response(
+                {'error': 'Format non supporté. Utilisez un fichier .xlsx.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            wb = openpyxl.load_workbook(filename=file, read_only=True, data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+        except Exception as e:
+            return Response(
+                {'error': f'Fichier Excel invalide: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not rows:
+            return Response(
+                {'error': 'Le fichier est vide.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Première ligne = en-têtes (on accepte des noms flexibles)
+        header = [str(c).strip().lower() if c else '' for c in rows[0]]
+        created = 0
+        errors = []
+        for i, row in enumerate(rows[1:], start=2):
+            if not any(v for v in row):
+                continue
+            def col(name_aliases):
+                for na in name_aliases:
+                    try:
+                        idx = header.index(na)
+                        if idx < len(row) and row[idx] is not None:
+                            return str(row[idx]).strip() or None
+                    except ValueError:
+                        continue
+                return None
+            name = col(['nom', 'name', 'nom complet', 'nom complet'])
+            if not name:
+                errors.append(f'Ligne {i}: nom manquant')
+                continue
+            phone = col(['telephone', 'phone', 'téléphone', 'tel'])
+            email = col(['email', 'mail'])
+            address = col(['adresse', 'address'])
+            company = col(['entreprise', 'company', 'societe'])
+            client_type = col(['type', 'client_type'])
+            if client_type and client_type.upper() in ('CLIENT', 'CLIENTE'):
+                client_type = Client.TYPE_CLIENT
+            else:
+                client_type = Client.TYPE_PROSPECT
+            observation = col(['observation', 'observations', 'notes', 'note'])
+            if email and Client.objects.filter(email=email).exists():
+                continue  # évite doublon par email
+            Client.objects.create(
+                name=name[:200],
+                phone=phone or None,
+                email=email or None,
+                address=address or None,
+                company=company or None,
+                client_type=client_type,
+                observation=observation or None,
+            )
+            created += 1
+        wb.close()
+        return Response({
+            'created': created,
+            'message': f'{created} contact(s) importé(s).',
+            'errors': errors[:50],
+        })
 
 
 class UserViewSet(viewsets.ModelViewSet):

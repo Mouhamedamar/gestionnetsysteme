@@ -24,7 +24,19 @@ class Expense(models.Model):
         ('NON_PAYE', 'Non payé'),
     ]
 
+    SITE_CHOICES = [
+        ('DAKAR', 'Dakar'),
+        ('MBOUR', 'Mbour'),
+    ]
+
     title = models.CharField(max_length=200, verbose_name="Titre de la dépense")
+    site = models.CharField(
+        max_length=20,
+        choices=SITE_CHOICES,
+        default='DAKAR',
+        verbose_name="Site",
+        help_text="Site concerné (Dakar ou Mbour)",
+    )
     description = models.TextField(blank=True, null=True, verbose_name="Description")
     category = models.CharField(
         max_length=20,
@@ -66,6 +78,7 @@ class Expense(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['date']),
             models.Index(fields=['deleted_at']),
+            models.Index(fields=['site']),
         ]
 
     def __str__(self):

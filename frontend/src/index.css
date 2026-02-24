@@ -13,23 +13,85 @@
 }
 
 @layer base {
+  html {
+    /* Responsive: éviter zoom sur focus input iOS, respecter safe-area (encoches) */
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 font-['Outfit',sans-serif] antialiased;
+    overflow-x: clip;
+    max-width: 100%;
+    overflow-wrap: break-word;
     background-image:
       radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 58, 237, 0.12), transparent),
       radial-gradient(ellipse 60% 40% at 100% 50%, rgba(59, 130, 246, 0.06), transparent),
       radial-gradient(ellipse 60% 40% at 0% 50%, rgba(139, 92, 246, 0.06), transparent);
     background-attachment: fixed;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  #root {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  img, video, iframe, object, embed {
+    max-width: 100%;
   }
 
   ::selection {
     @apply bg-primary-200 text-primary-900;
   }
+
 }
 
 /* Conteneur page et titres (réutilisables sur toutes les pages) */
 .page-container {
-  @apply w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8;
+  @apply w-full max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Tables responsive : scroll horizontal sur petits écrans */
+.table-wrapper-responsive {
+  @apply overflow-x-auto -mx-3 sm:mx-0;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+  max-width: 100%;
+}
+.table-wrapper-responsive .table-modern {
+  min-width: 600px;
+}
+
+/* Zoom / responsivité : champs et modales */
+input, textarea, select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.zoom-safe {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.modal-content-zoom-safe {
+  max-width: min(100vw - 2rem, 42rem);
+  min-width: 0;
+}
+
+/* Safe area pour barre latérale et header (encoches) */
+.safe-area-inset-left {
+  padding-left: env(safe-area-inset-left, 0);
+}
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0);
 }
 
 .page-header {
@@ -135,6 +197,22 @@
 
   .nav-link-active {
     @apply bg-primary-50 text-primary-600 font-semibold shadow-sm shadow-primary-100/50;
+  }
+
+  /* Navigation : sidebar et header */
+  .sidebar-nav {
+    @apply will-change-auto;
+  }
+  .nav-item.active {
+    @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30;
+  }
+  .nav-item:not(.active):hover {
+    @apply bg-primary-50/80 text-primary-600;
+  }
+  @media (max-width: 1023px) {
+    .sidebar-nav {
+      @apply shadow-xl;
+    }
   }
 
   /* Badge / pastille (statut, type) */

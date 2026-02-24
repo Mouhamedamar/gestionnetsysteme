@@ -1,15 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { mockProducts, mockStockMovements, mockDashboardStats } from '../data/mockData';
+import { isConnectionError, CONNECTION_ERROR_MESSAGE } from '../utils/errorHandler';
 
 import { API_BASE_URL, USE_API } from '../config';
 const BASE_URL = API_BASE_URL;
-
-function isConnectionError(err) {
-  return (
-    err?.message === 'Failed to fetch' ||
-    (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('fetch'))
-  );
-}
 
 const AppContext = createContext();
 
@@ -42,6 +36,8 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const backendUnreachableNotifiedRef = useRef(false);
+  const dashboardStatsFetchingRef = useRef(false);
+  const dashboardChartsFetchingRef = useRef(false);
 
   // Simuler le chargement
   const simulateLoading = (callback, delay = 500) => {
@@ -52,11 +48,12 @@ export const AppProvider = ({ children }) => {
     }, delay);
   };
 
-  // Notification
+  // Notification (erreurs et avertissements restent plus longtemps pour être bien visibles)
   const showNotification = (message, type = 'success') => {
     if (message) {
       setNotification({ message, type });
-      setTimeout(() => setNotification(null), 3000);
+      const duration = type === 'error' || type === 'warning' ? 10000 : 3000;
+      setTimeout(() => setNotification(null), duration);
     } else {
       setNotification(null);
     }
@@ -266,21 +263,16 @@ export const AppProvider = ({ children }) => {
           (error?.name === 'TypeError' && String(error?.message || '').toLowerCase().includes('fetch'));
         if (isConnectionRefused && !backendUnreachableNotifiedRef.current) {
           backendUnreachableNotifiedRef.current = true;
-          console.warn(
-            '[apiCall] Backend injoignable (' +
-              BASE_URL +
-              '). Démarrez le serveur Django (python manage.py runserver) pour utiliser l\'API.'
-          );
+          console.warn('[apiCall] Backend injoignable:', BASE_URL);
           setNotification({
-            message:
-              'Backend indisponible. Démarrez le serveur Django (port 8000) pour les données réelles.',
+            message: CONNECTION_ERROR_MESSAGE,
             type: 'error'
           });
-          setTimeout(() => setNotification(null), 8000);
+          setTimeout(() => setNotification(null), 10000);
         } else if (!isConnectionRefused) {
           console.error('[apiCall] Fetch error:', error);
         }
-        throw error;
+        throw new Error(CONNECTION_ERROR_MESSAGE);
       }
     },
     [accessToken, refreshToken]
@@ -487,15 +479,22 @@ export const AppProvider = ({ children }) => {
     }
   }, [loggedIn, accessToken, refreshToken]);
 
-  // Charger les statistiques du dashboard depuis l'API
-  const fetchDashboardStats = useCallback(async () => {
+  // Charger les statistiques du dashboard depuis l'API (options.silent = true pour rafraîchir sans afficher le loader)
+  const fetchDashboardStats = useCallback(async (options = {}) => {
     if (!USE_API) return;
     if (!loggedIn) return;
+    if (dashboardStatsFetchingRef.current) return;
+    dashboardStatsFetchingRef.current = true;
+
+    const silent = options.silent === true;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = accessToken || localStorage.getItem('accessToken');
-      if (!token) return;
+      if (!token) {
+        dashboardStatsFetchingRef.current = false;
+        return;
+      }
 
       const headers = {
         'Content-Type': 'application/json',
@@ -511,6 +510,7 @@ export const AppProvider = ({ children }) => {
           setDashboardStats({
             total_products: 0,
             low_stock_products: 0,
+            low_stock_list: [],
             stock_value: 0,
             total_invoices: 0,
             revenue: 0,
@@ -519,6 +519,13 @@ export const AppProvider = ({ children }) => {
             top_products: []
           });
           return;
+        }
+
+        if (response.status === 500) {
+          const errBody = await response.json().catch(() => ({}));
+          const msg = errBody.detail || errBody.message || 'Erreur serveur';
+          console.error('Dashboard stats 500:', errBody);
+          throw new Error(msg);
         }
         
         if (response.status === 401) {
@@ -548,6 +555,7 @@ export const AppProvider = ({ children }) => {
                 setDashboardStats({
                   total_products: 0,
                   low_stock_products: 0,
+                  low_stock_list: [],
                   stock_value: 0,
                   total_invoices: 0,
                   revenue: 0,
@@ -561,7 +569,9 @@ export const AppProvider = ({ children }) => {
           }
           throw new Error('Session expirée');
         }
-        throw new Error('Erreur lors du chargement des statistiques du dashboard');
+        const errBody = await response.json().catch(() => ({}));
+        const msg = errBody.detail || errBody.message || 'Erreur lors du chargement des statistiques du dashboard';
+        throw new Error(msg);
       }
 
       const data = await response.json();
@@ -576,10 +586,11 @@ export const AppProvider = ({ children }) => {
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
       } else {
-        showNotification('Erreur lors du chargement des statistiques du dashboard', 'error');
+        showNotification(error.message || 'Erreur lors du chargement des statistiques du dashboard', 'error');
       }
     } finally {
-      setLoading(false);
+      dashboardStatsFetchingRef.current = false;
+      if (!silent) setLoading(false);
     }
   }, [loggedIn, accessToken, refreshToken]);
 
@@ -689,10 +700,15 @@ export const AppProvider = ({ children }) => {
   const fetchDashboardCharts = useCallback(async () => {
     if (!USE_API) return;
     if (!loggedIn) return;
+    if (dashboardChartsFetchingRef.current) return;
+    dashboardChartsFetchingRef.current = true;
 
     try {
       const token = accessToken || localStorage.getItem('accessToken');
-      if (!token) return;
+      if (!token) {
+        dashboardChartsFetchingRef.current = false;
+        return;
+      }
 
       const headers = {
         'Content-Type': 'application/json',
@@ -775,16 +791,23 @@ export const AppProvider = ({ children }) => {
       } else {
         showNotification('Erreur lors du chargement des données des graphiques', 'error');
       }
+    } finally {
+      dashboardChartsFetchingRef.current = false;
     }
   }, [loggedIn, accessToken, refreshToken]);
 
-  // Charger les clients depuis l'API
-  const fetchClients = useCallback(async () => {
+  // Charger les clients depuis l'API (params optionnels: { client_type, is_blacklisted })
+  const fetchClients = useCallback(async (params = {}) => {
     if (!loggedIn) return;
 
     try {
       setLoading(true);
-      const response = await apiCall('/api/auth/clients/', {
+      const qs = new URLSearchParams();
+      if (params.client_type) qs.set('client_type', params.client_type);
+      if (params.is_blacklisted !== undefined && params.is_blacklisted !== '') qs.set('is_blacklisted', params.is_blacklisted);
+      if (params.include_prospects) qs.set('include_prospects', '1');
+      const url = qs.toString() ? `/api/auth/clients/?${qs.toString()}` : '/api/auth/clients/';
+      const response = await apiCall(url, {
         method: 'GET'
       });
 
@@ -1157,16 +1180,21 @@ export const AppProvider = ({ children }) => {
           errorData = null;
         }
         console.error('addInvoice error:', { status: response.status, errorData, errorText });
-        const firstError =
-          errorData?.detail ||
-          errorData?.error ||
-          (errorData && typeof errorData === 'object'
-            ? Object.values(errorData).flat()[0]
-            : null);
-        throw new Error(
-          firstError ||
-            `Erreur lors de la création de la facture (HTTP ${response.status})`
-        );
+        // Extraire le premier message d'erreur (DRF: detail, error, { items: ["msg"] }, ou détail imbriqué)
+        const extractMessage = (v) => {
+          if (typeof v === 'string' && v.trim()) return v.trim();
+          if (Array.isArray(v) && v.length) return extractMessage(v[0]);
+          if (v && typeof v === 'object') return extractMessage(Object.values(v)[0]);
+          return null;
+        };
+        const serverMessage =
+          extractMessage(errorData?.detail) ??
+          extractMessage(errorData?.error) ??
+          (errorData && typeof errorData === 'object' ? extractMessage(errorData) : null) ??
+          (errorText && errorText.trim().startsWith('<') ? null : errorText?.trim());
+        const errorMessage =
+          (serverMessage && serverMessage.length > 0) ? serverMessage : `La facture n'a pas pu être créée. Veuillez réessayer ou contacter l'équipe technique (erreur ${response.status}).`;
+        throw new Error(errorMessage);
       }
 
       const newInvoice = await response.json();
@@ -1197,13 +1225,23 @@ export const AppProvider = ({ children }) => {
       // Utiliser la forme fonctionnelle pour garantir la mise à jour correcte du state
       setInvoices(prevInvoices => [...prevInvoices, mappedInvoice]);
       showNotification('Facture créée avec succès');
+      // Alerte si des produits de la facture sont en faible stock (message professionnel)
+      const lowStock = newInvoice.low_stock_warning;
+      if (Array.isArray(lowStock) && lowStock.length > 0) {
+        const blocks = lowStock.map(
+          (p) =>
+            `• ${p.name || p} — Stock actuel : ${p.quantity ?? p.stock_actuel ?? '?'} (seuil d'alerte : ${p.alert_threshold ?? p.seuil ?? '?'})`
+        );
+        const message = `Alerte stock — Réapprovisionnement recommandé\n\n${blocks.join('\n')}\n\nMerci de prévoir un réapprovisionnement pour éviter toute rupture.`;
+        showNotification(message, 'warning');
+      }
       // Recharger les produits pour mettre à jour les quantités de stock
       fetchProducts();
       
-      return mappedInvoice; // Retourner la facture créée
+      return { ...mappedInvoice, low_stock_warning: lowStock }; // Retourner la facture créée
     } catch (error) {
       console.error('Erreur addInvoice:', error);
-      showNotification(error.message || 'Erreur lors de la création de la facture', 'error');
+      showNotification(error.message || 'La facture n\'a pas pu être créée. Veuillez réessayer.', 'error');
       throw error;
     } finally {
       setLoading(false);
@@ -1824,6 +1862,45 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Convertir un prospect en client
+  const convertToClient = async (id) => {
+    try {
+      setLoading(true);
+      const response = await apiCall(`/api/auth/clients/${id}/convert_to_client/`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Erreur lors de la conversion');
+      }
+      const updated = await response.json();
+      setClients(prev => prev.map(c => c.id === id ? updated : c));
+      showNotification('Prospect converti en client');
+      return updated;
+    } catch (error) {
+      showNotification(error.message || 'Erreur lors de la conversion', 'error');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Blacklister un contact
+  const blacklistClient = async (id) => {
+    try {
+      setLoading(true);
+      const response = await apiCall(`/api/auth/clients/${id}/blacklist/`, { method: 'POST' });
+      if (!response.ok) throw new Error('Erreur');
+      const updated = await response.json();
+      setClients(prev => prev.map(c => c.id === id ? updated : c));
+      showNotification('Contact blacklisté');
+      return updated;
+    } catch (error) {
+      showNotification(error.message || 'Erreur', 'error');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Ajouter un utilisateur
   const addUser = async (userData) => {
     try {
@@ -1948,6 +2025,8 @@ export const AppProvider = ({ children }) => {
     fetchExpenses,
     fetchClients,
     fetchUsers,
+    fetchDashboardStats,
+    fetchDashboardCharts,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -1970,6 +2049,8 @@ export const AppProvider = ({ children }) => {
     addClient,
     updateClient,
     deleteClient,
+    convertToClient,
+    blacklistClient,
     addUser,
     updateUserById,
     deleteUser,

@@ -12,7 +12,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         model = Expense
         fields = [
             'id', 'title', 'description', 'category', 'amount',
-            'date', 'status', 'supplier', 'receipt_number', 'justification_image',
+            'date', 'status', 'site', 'supplier', 'receipt_number', 'justification_image',
             'justification_image_url', 'created_at', 'updated_at', 'deleted_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'deleted_at', 'justification_image_url']
@@ -45,7 +45,7 @@ class ExpenseCreateSerializer(serializers.ModelSerializer):
         model = Expense
         fields = [
             'title', 'description', 'category', 'amount',
-            'date', 'status', 'supplier', 'receipt_number', 'justification_image'
+            'date', 'status', 'site', 'supplier', 'receipt_number', 'justification_image'
         ]
 
     def validate_amount(self, value):

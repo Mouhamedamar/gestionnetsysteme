@@ -1,23 +1,40 @@
-import { X, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useEffect } from 'react';
 
 const Notification = ({ message, type = 'success', onClose }) => {
+  const isError = type === 'error';
+  const isWarning = type === 'warning';
+  const duration = isError || isWarning ? 10000 : 3000;
+
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
-    }, 3000);
+    }, duration);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, duration]);
 
-  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
-  const Icon = type === 'success' ? CheckCircle : AlertCircle;
+  const bgColor =
+    type === 'success' ? 'bg-green-500' :
+    type === 'warning' ? 'bg-amber-500' :
+    'bg-red-500';
+  const Icon =
+    type === 'success' ? CheckCircle :
+    type === 'warning' ? AlertTriangle :
+    AlertCircle;
+
+  const text = typeof message === 'string' || typeof message === 'number' ? message : String(message ?? '');
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
-      <div className={`${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]`}>
-        <Icon className="w-5 h-5" />
-        <span className="flex-1">{typeof message === 'string' || typeof message === 'number' ? message : String(message ?? '')}</span>
-        <button onClick={onClose} className="hover:bg-white/20 rounded p-1">
+    <div className="fixed top-4 right-4 z-[9999] animate-slide-in-right max-w-[min(100vw-2rem,28rem)]">
+      <div className={`${bgColor} text-white px-5 py-4 rounded-lg shadow-xl flex items-start gap-3 min-w-0`}>
+        <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <span className="flex-1 min-w-0 text-sm leading-snug whitespace-pre-line break-words">{text}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-shrink-0 hover:bg-white/20 rounded p-1"
+          aria-label="Fermer"
+        >
           <X className="w-4 h-4" />
         </button>
       </div>

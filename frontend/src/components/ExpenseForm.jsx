@@ -10,6 +10,7 @@ const ExpenseForm = ({ expense, onClose, onSave }) => {
     amount: '',
     date: new Date().toISOString().split('T')[0],
     status: 'NON_PAYE',
+    site: 'DAKAR',
     supplier: '',
     receipt_number: ''
   });
@@ -35,6 +36,7 @@ const ExpenseForm = ({ expense, onClose, onSave }) => {
         amount: expense.amount || '',
         date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         status: expense.status || 'NON_PAYE',
+        site: expense.site || 'DAKAR',
         supplier: expense.supplier || '',
         receipt_number: expense.receipt_number || ''
       });
@@ -46,6 +48,7 @@ const ExpenseForm = ({ expense, onClose, onSave }) => {
         amount: '',
         date: new Date().toISOString().split('T')[0],
         status: 'NON_PAYE',
+        site: 'DAKAR',
         supplier: '',
         receipt_number: ''
       });
@@ -217,6 +220,22 @@ const ExpenseForm = ({ expense, onClose, onSave }) => {
             <option value="PAYE">Payé</option>
           </select>
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="site" className="block text-sm font-medium text-gray-700 mb-1">
+          Site
+        </label>
+        <select
+          id="site"
+          name="site"
+          value={formData.site}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="DAKAR">Dakar</option>
+          <option value="MBOUR">Mbour</option>
+        </select>
       </div>
 
       <div>

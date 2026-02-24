@@ -1,8 +1,14 @@
 import math
+from datetime import datetime
+
 from rest_framework import viewsets, filters, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.conf import settings
+from django.utils import timezone
+
 from .models import CheckIn
 from .serializers import CheckInSerializer
 from .permissions import PointagePermission, user_is_admin
@@ -160,3 +166,58 @@ class CheckInViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class RapportQuotidienAPIView(APIView):
+    """
+    Rapport quotidien de pointage (entrées 00h00–10h00).
+    Réservé aux admins. GET ?date=YYYY-MM-DD (défaut : aujourd'hui).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not user_is_admin(request.user):
+            return Response({'detail': 'Accès réservé aux administrateurs.'}, status=status.HTTP_403_FORBIDDEN)
+        from .report_email import (
+            get_daily_report_data,
+            _compute_status_rows,
+            build_report_html,
+        )
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                date_report = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'detail': 'Date invalide. Utilisez YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            date_report = timezone.now().date()
+
+        entries, present_ids, absent_users, _ = get_daily_report_data(date_report)
+        nb_presents, nb_retards, nb_absents, rows = _compute_status_rows(entries, present_ids, absent_users)
+        effectif_total = len(present_ids) + len(absent_users)
+
+        rows_data = [
+            {
+                'nom': r[0],
+                'statut': r[1],
+                'heure_arrivee': r[2],
+                'heure_sortie': r[3],
+                'duree': r[4],
+                'justificatif': r[5],
+            }
+            for r in rows
+        ]
+        html = build_report_html(date_report, entries, present_ids, absent_users)
+        return Response({
+            'date': date_report.isoformat(),
+            'date_formatted': date_report.strftime('%d/%m/%Y'),
+            'period': '00h00 — 10h00 (GMT)',
+            'summary': {
+                'nb_presents': nb_presents,
+                'nb_retards': nb_retards,
+                'nb_absents': nb_absents,
+                'effectif_total': effectif_total,
+            },
+            'rows': rows_data,
+            'html': html,
+        })

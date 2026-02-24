@@ -6,13 +6,28 @@ from products.serializers import ProductSerializer
 class StockNotificationRecipientSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockNotificationRecipient
-        fields = ['id', 'name', 'phone', 'is_active', 'created_at']
+        fields = ['id', 'name', 'phone', 'email', 'is_active', 'created_at']
+
+    def validate(self, data):
+        phone = (data.get('phone') or '').strip()
+        email = (data.get('email') or '').strip()
+        if not phone and not email:
+            raise serializers.ValidationError(
+                'Indiquez au moins un numéro de téléphone ou une adresse email.'
+            )
+        return data
 
 
 class StockAlertSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockAlertSettings
-        fields = ['id', 'alert_threshold', 'updated_at']
+        fields = [
+            'id',
+            'alert_threshold',
+            'reminder_interval_days',
+            'last_reminder_sent_at',
+            'updated_at',
+        ]
 
 
 class StockMovementSerializer(serializers.ModelSerializer):

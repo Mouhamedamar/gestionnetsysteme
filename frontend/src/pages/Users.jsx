@@ -141,10 +141,12 @@ const Users = () => {
                       <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${
                         user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                         user.role === 'technicien' ? 'bg-blue-100 text-blue-700' :
+                        user.role === 'pointage_only' ? 'bg-amber-100 text-amber-700' :
                         'bg-green-100 text-green-700'
                       }`}>
                         {user.role === 'admin' ? '👑 Admin' :
                          user.role === 'technicien' ? '🔧 Technicien' :
+                         user.role === 'pointage_only' ? '⏱ Pointage seul' :
                          '💼 Commercial'}
                       </span>
                     </td>

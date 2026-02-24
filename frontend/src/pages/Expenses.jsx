@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import PageHeader from '../components/PageHeader';
-import { DollarSign, Plus, Search, Eye, Edit, Trash2, CheckCircle, XCircle, Filter, Image as ImageIcon, Download, FileDown } from 'lucide-react';
+import { DollarSign, Plus, Search, Eye, Edit, Trash2, CheckCircle, XCircle, Filter, Image as ImageIcon, Download, FileDown, Calendar, History, MapPin, TrendingDown, Wallet, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { formatCurrency } from '../utils/formatCurrency';
 import { exportExpensesToCSV } from '../utils/exportData';
@@ -16,12 +16,51 @@ const Expenses = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [siteFilter, setSiteFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState(''); // '' = tous les mois, '1'..'12' = janvier..décembre
+  const [yearFilter, setYearFilter] = useState(() => new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
   const hasLoadedRef = useRef(false);
+
+  // Approvisionnement par site (stocké en localStorage, comme sur la photo)
+  const APPRO_STORAGE_DAKAR = 'expenses_appro_dakar';
+  const APPRO_STORAGE_MBOUR = 'expenses_appro_mbour';
+  const [approDakar, setApproDakar] = useState(() => parseFloat(localStorage.getItem(APPRO_STORAGE_DAKAR) || '0') || 0);
+  const [approMbour, setApproMbour] = useState(() => parseFloat(localStorage.getItem(APPRO_STORAGE_MBOUR) || '0') || 0);
+  const [showApproModal, setShowApproModal] = useState(false);
+  const [showHistoriqueModal, setShowHistoriqueModal] = useState(false);
+  const [approInputValue, setApproInputValue] = useState('');
+
+  const saveApproDakar = (val) => {
+    const n = parseFloat(val) || 0;
+    setApproDakar(n);
+    localStorage.setItem(APPRO_STORAGE_DAKAR, String(n));
+  };
+  const saveApproMbour = (val) => {
+    const n = parseFloat(val) || 0;
+    setApproMbour(n);
+    localStorage.setItem(APPRO_STORAGE_MBOUR, String(n));
+  };
+  const openApproModal = () => {
+    const current = siteFilter === 'DAKAR' ? approDakar : siteFilter === 'MBOUR' ? approMbour : 0;
+    setApproInputValue(current ? String(current) : '');
+    setShowApproModal(true);
+  };
+  const submitApproModal = () => {
+    const val = parseFloat(approInputValue.replace(',', '.')) || 0;
+    if (siteFilter === 'DAKAR') saveApproDakar(val);
+    else if (siteFilter === 'MBOUR') saveApproMbour(val);
+    else {
+      saveApproDakar(val);
+      saveApproMbour(val);
+    }
+    setShowApproModal(false);
+    showNotification('Approvisionnement enregistré');
+  };
 
   // Debounce de la recherche
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -58,17 +97,47 @@ const Expenses = () => {
       expense.supplier?.toLowerCase().includes(searchLower) ||
       expense.receipt_number?.toLowerCase().includes(searchLower)
     );
-    
+
     const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
     const matchesStatus = statusFilter === 'all' || expense.status === statusFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus;
+    const matchesSite = siteFilter === 'all' || expense.site === siteFilter;
+
+    // Filtre par mois / année : chaque site a ses propres données pour le mois choisi
+    let matchesMonth = true;
+    if (monthFilter) {
+      try {
+        const d = new Date(expense.date);
+        const expenseMonth = String(d.getMonth() + 1);
+        const expenseYear = d.getFullYear();
+        matchesMonth = expenseMonth === monthFilter && expenseYear === yearFilter;
+      } catch {
+        matchesMonth = false;
+      }
+    }
+
+    return matchesSearch && matchesCategory && matchesStatus && matchesSite && matchesMonth;
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentExpenses = filteredExpenses.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
+
+  // Chacun ses dépenses : listes séparées par site pour la vue "Tous les sites"
+  const filteredExpensesDakar = filteredExpenses.filter(e => e.site === 'DAKAR');
+  const filteredExpensesMbour = filteredExpenses.filter(e => e.site === 'MBOUR');
+  const [pageDakar, setPageDakar] = useState(1);
+  const [pageMbour, setPageMbour] = useState(1);
+  const perSitePageSize = 10;
+  const currentDakar = filteredExpensesDakar.slice((pageDakar - 1) * perSitePageSize, pageDakar * perSitePageSize);
+  const currentMbour = filteredExpensesMbour.slice((pageMbour - 1) * perSitePageSize, pageMbour * perSitePageSize);
+  const totalPagesDakar = Math.ceil(filteredExpensesDakar.length / perSitePageSize);
+  const totalPagesMbour = Math.ceil(filteredExpensesMbour.length / perSitePageSize);
+
+  useEffect(() => {
+    setPageDakar(1);
+    setPageMbour(1);
+  }, [siteFilter, monthFilter, yearFilter, categoryFilter, statusFilter, debouncedSearchTerm]);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -260,27 +329,64 @@ const Expenses = () => {
     }
   };
 
-  // Calculer les statistiques
-  const totalExpenses = expenses.reduce((sum, exp) => {
-    const amount = typeof exp.amount === 'string' 
-      ? parseFloat(exp.amount) || 0 
+  // Calculer les statistiques sur les dépenses filtrées (site + catégorie + statut)
+  const statsExpenses = filteredExpenses.length > 0 ? filteredExpenses : expenses;
+  const totalExpenses = statsExpenses.reduce((sum, exp) => {
+    const amount = typeof exp.amount === 'string'
+      ? parseFloat(exp.amount) || 0
       : Number(exp.amount) || 0;
     return sum + amount;
   }, 0);
 
-  const paidExpenses = expenses.filter(e => e.status === 'PAYE').reduce((sum, exp) => {
-    const amount = typeof exp.amount === 'string' 
-      ? parseFloat(exp.amount) || 0 
+  const paidExpenses = statsExpenses.filter(e => e.status === 'PAYE').reduce((sum, exp) => {
+    const amount = typeof exp.amount === 'string'
+      ? parseFloat(exp.amount) || 0
       : Number(exp.amount) || 0;
     return sum + amount;
   }, 0);
 
-  const unpaidExpenses = expenses.filter(e => e.status === 'NON_PAYE').reduce((sum, exp) => {
-    const amount = typeof exp.amount === 'string' 
-      ? parseFloat(exp.amount) || 0 
+  const unpaidExpenses = statsExpenses.filter(e => e.status === 'NON_PAYE').reduce((sum, exp) => {
+    const amount = typeof exp.amount === 'string'
+      ? parseFloat(exp.amount) || 0
       : Number(exp.amount) || 0;
     return sum + amount;
   }, 0);
+
+  // Approvisionnement pour le(s) site(s) affiché(s) — comme sur la photo
+  const approTotal = siteFilter === 'DAKAR' ? approDakar : siteFilter === 'MBOUR' ? approMbour : approDakar + approMbour;
+  const restantAppro = Math.max(0, approTotal - totalExpenses);
+  const depensesNonAppro = Math.max(0, totalExpenses - approTotal);
+
+  // Chaque site a ses propres dépenses et approvisionnement — calculs par site pour la vue "Tous les sites"
+  const expensesBySite = {
+    DAKAR: expenses.filter(e => e.site === 'DAKAR' && (() => {
+      if (!monthFilter) return true;
+      try {
+        const d = new Date(e.date);
+        return String(d.getMonth() + 1) === monthFilter && d.getFullYear() === yearFilter;
+      } catch { return false; }
+    })()),
+    MBOUR: expenses.filter(e => e.site === 'MBOUR' && (() => {
+      if (!monthFilter) return true;
+      try {
+        const d = new Date(e.date);
+        return String(d.getMonth() + 1) === monthFilter && d.getFullYear() === yearFilter;
+      } catch { return false; }
+    })()),
+  };
+  const sumExpenses = (list) => list.reduce((s, e) => s + (parseFloat(e.amount) || Number(e.amount) || 0), 0);
+  const statsDakar = {
+    appro: approDakar,
+    depenses: sumExpenses(expensesBySite.DAKAR),
+    restant: Math.max(0, approDakar - sumExpenses(expensesBySite.DAKAR)),
+    nonAppro: Math.max(0, sumExpenses(expensesBySite.DAKAR) - approDakar),
+  };
+  const statsMbour = {
+    appro: approMbour,
+    depenses: sumExpenses(expensesBySite.MBOUR),
+    restant: Math.max(0, approMbour - sumExpenses(expensesBySite.MBOUR)),
+    nonAppro: Math.max(0, sumExpenses(expensesBySite.MBOUR) - approMbour),
+  };
 
   if (loading) return (
     <div className="p-8">
@@ -292,25 +398,120 @@ const Expenses = () => {
     </div>
   );
 
+  const pageTitle = siteFilter === 'DAKAR'
+    ? 'Dépenses du site : Dakar'
+    : siteFilter === 'MBOUR'
+      ? 'Dépenses du site : Mbour'
+      : 'Dépenses - Tous les sites';
+  const pageSubtitle = 'Analyse et suivi détaillés des finances et approvisionnements';
+
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      <PageHeader title="Dépenses" subtitle="Gestion complète de vos dépenses" badge="Finance" icon={DollarSign}>
-        <button type="button" onClick={handleExportCSV} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter CSV">
-          <Download className="w-5 h-5" />
-          CSV
-        </button>
-        <button type="button" onClick={handleExportPDF} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter PDF">
-          <FileDown className="w-5 h-5" />
-          PDF
-        </button>
-        <Link to="/expenses/new" className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
-          <Plus className="w-5 h-5" />
-          Nouvelle Dépense
-        </Link>
+      <PageHeader title={pageTitle} subtitle={pageSubtitle} badge="Finance" icon={DollarSign}>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={openApproModal} className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-2 shadow-lg transition-all">
+            <DollarSign className="w-5 h-5" />
+            Approvisionnement
+          </button>
+          <button type="button" onClick={() => setShowHistoriqueModal(true)} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-2 shadow-lg transition-all">
+            <Calendar className="w-5 h-5" />
+            Historique des approvisionnements
+          </button>
+          <button type="button" onClick={handleExportCSV} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter CSV">
+            <Download className="w-5 h-5" />
+            CSV
+          </button>
+          <button type="button" onClick={handleExportPDF} disabled={!expenses || expenses.length === 0} className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Exporter PDF">
+            <FileDown className="w-5 h-5" />
+            PDF
+          </button>
+          <Link to={siteFilter === 'all' ? '/expenses/new' : `/expenses/new?site=${siteFilter}`} className="px-6 py-2.5 rounded-xl bg-white text-primary-600 font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all">
+            <Plus className="w-5 h-5" />
+            Nouvelle Dépense
+          </Link>
+        </div>
       </PageHeader>
 
-      {/* Filtres */}
-      <div className="glass-card p-6 shadow-xl border-white/60">
+      {/* Sélecteur de site */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-primary-500" />
+          Afficher le site
+        </span>
+        <div className="flex rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm p-1 gap-0.5">
+          <button
+            type="button"
+            onClick={() => { setSiteFilter('DAKAR'); setCurrentPage(1); }}
+            className={`px-5 py-2.5 text-sm font-bold rounded-xl transition-all flex items-center gap-2 ${siteFilter === 'DAKAR' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            Dakar
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSiteFilter('MBOUR'); setCurrentPage(1); }}
+            className={`px-5 py-2.5 text-sm font-bold rounded-xl transition-all flex items-center gap-2 ${siteFilter === 'MBOUR' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            Mbour
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSiteFilter('all'); setCurrentPage(1); }}
+            className={`px-5 py-2.5 text-sm font-bold rounded-xl transition-all ${siteFilter === 'all' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            Les deux
+          </button>
+        </div>
+      </div>
+
+      {/* Filtrer par mois */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-primary-500" />
+          Filtrer par mois
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={yearFilter}
+            onChange={(e) => { setYearFilter(Number(e.target.value)); setCurrentPage(1); }}
+            className="input-field py-2.5 w-auto min-w-[100px] font-medium"
+          >
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          {[
+            { value: '', label: 'Tous' },
+            { value: '1', label: 'Janvier' },
+            { value: '2', label: 'Février' },
+            { value: '3', label: 'Mars' },
+            { value: '4', label: 'Avril' },
+            { value: '5', label: 'Mai' },
+            { value: '6', label: 'Juin' },
+            { value: '7', label: 'Juillet' },
+            { value: '8', label: 'Août' },
+            { value: '9', label: 'Septembre' },
+            { value: '10', label: 'Octobre' },
+            { value: '11', label: 'Novembre' },
+            { value: '12', label: 'Décembre' },
+          ].map((m) => (
+            <button
+              key={m.value || 'all'}
+              type="button"
+              onClick={() => { setMonthFilter(m.value); setCurrentPage(1); }}
+              className={`px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                monthFilter === m.value
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtres recherche et catégorie */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -344,170 +545,232 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Total Dépenses</p>
-          <p className="text-4xl font-black text-primary-600">{formatCurrency(totalExpenses)} Fcfa</p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Payées</p>
-          <p className="text-4xl font-black text-green-600">{formatCurrency(paidExpenses)} Fcfa</p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Non Payées</p>
-          <p className="text-4xl font-black text-yellow-600">{formatCurrency(unpaidExpenses)} Fcfa</p>
-        </div>
-
-        <div className="glass-card p-6 border-white/40 text-center">
-          <p className="text-slate-800 text-sm mb-2 font-bold">Nombre Total</p>
-          <p className="text-4xl font-black text-primary-600">{expenses.length}</p>
-        </div>
-      </div>
-
-      {/* Expenses Table */}
-      <div className="glass-card p-0 border-white/40 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-primary-600/10 backdrop-blur-sm">
-              <tr>
-                <th className="table-header">Titre</th>
-                <th className="table-header">Catégorie</th>
-                <th className="table-header text-center">Date</th>
-                <th className="table-header text-right">Montant</th>
-                <th className="table-header text-center">Statut</th>
-                <th className="table-header text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {currentExpenses.length > 0 ? (
-                currentExpenses.map((expense) => {
-                  const StatusIcon = getStatusIcon(expense.status);
-                  return (
-                    <tr key={expense.id} className="hover:bg-white/5 transition-colors">
-                      <td className="table-cell">
-                        <div className="flex items-center gap-3">
-                          {expense.justification_image || expense.justification_image_url ? (
-                            <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-slate-200 flex-shrink-0">
-                              <img
-                                src={expense.justification_image_url || 
-                                  (expense.justification_image?.startsWith('http') 
-                                    ? expense.justification_image 
-                                    : `${API_BASE_URL}${expense.justification_image}`)}
-                                alt="Justification"
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.nextSibling.style.display = 'flex';
-                                }}
-                              />
-                              <div className="w-full h-full bg-primary-100 flex items-center justify-center" style={{ display: 'none' }}>
-                                <ImageIcon className="w-6 h-6 text-primary-600" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-slate-100 border-2 border-slate-200 flex items-center justify-center flex-shrink-0">
-                              <ImageIcon className="w-6 h-6 text-slate-400" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-semibold text-slate-800">{expense.title || 'Sans titre'}</div>
-                            {expense.supplier && (
-                              <div className="text-xs text-slate-500">Fournisseur: {expense.supplier}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="table-cell">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${getCategoryColor(expense.category)}`}>
-                          {getCategoryLabel(expense.category)}
-                        </span>
-                      </td>
-                      <td className="table-cell text-center text-slate-700">
-                        {formatDate(expense.date)}
-                      </td>
-                      <td className="table-cell text-right font-bold text-slate-900">
-                        {(() => {
-                          const amount = typeof expense.amount === 'string' 
-                            ? parseFloat(expense.amount) || 0 
-                            : Number(expense.amount) || 0;
-                          return formatCurrency(amount);
-                        })()} Fcfa
-                      </td>
-                      <td className="table-cell text-center">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 ${getStatusColor(expense.status)}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {expense.status === 'PAYE' ? 'Payé' : 'Non payé'}
-                        </span>
-                      </td>
-                      <td className="table-cell text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleViewExpense(expense)}
-                            className="p-2 text-primary-600 hover:bg-primary-100 rounded-lg transition-all"
-                            title="Voir les détails"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                          <Link
-                            to={`/expenses/${expense.id}/edit`}
-                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
-                            title="Modifier"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </Link>
-                          <button
-                            onClick={() => setExpenseToDelete(expense)}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="6" className="table-cell text-center py-8">
-                    <div className="flex flex-col items-center justify-center gap-4">
-                      <DollarSign className="w-16 h-16 text-slate-400" />
-                      <p className="text-slate-800 text-lg font-bold">Aucune dépense trouvée</p>
-                      <p className="text-slate-700 text-sm max-w-md font-medium">
-                        Commencez par créer une nouvelle dépense en cliquant sur le bouton ci-dessus.
-                      </p>
+      {/* Stats + listes par site : Dakar | Mbour — design amélioré */}
+      <div className={`grid grid-cols-1 gap-8 ${siteFilter === 'all' ? 'lg:grid-cols-2' : ''}`}>
+        {/* Bloc Dakar */}
+        {(siteFilter === 'all' || siteFilter === 'DAKAR') && (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4 bg-gradient-to-r from-primary-50 to-slate-50 border-b border-slate-100 flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-primary-600" />
+                </div>
+                <h3 className="text-lg font-black text-slate-800">Dakar</h3>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-emerald-50 p-4 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Wallet className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-emerald-800">Approvisionnement</span>
                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="glass-card p-4 border-t border-white/10 flex items-center justify-between">
-            <div className="text-sm text-slate-700 font-medium">
-              Page {currentPage} sur {totalPages} ({filteredExpenses.length} dépense(s))
+                    <p className="text-lg font-black text-emerald-700">{formatCurrency(statsDakar.appro)}</p>
+                    <p className="text-xs text-emerald-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-primary-50 p-4 border border-primary-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-primary-600" />
+                      <span className="text-xs font-bold text-primary-800">Dépenses</span>
+                    </div>
+                    <p className="text-lg font-black text-primary-700">{formatCurrency(statsDakar.depenses)}</p>
+                    <p className="text-xs text-primary-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingDown className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-blue-800">Restant Appro</span>
+                    </div>
+                    <p className="text-lg font-black text-blue-700">{formatCurrency(statsDakar.restant)}</p>
+                    <p className="text-xs text-blue-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-rose-50 p-4 border border-rose-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span className="text-xs font-bold text-rose-800">Non appro.</span>
+                    </div>
+                    <p className="text-lg font-black text-rose-700">{formatCurrency(statsDakar.nonAppro)}</p>
+                    <p className="text-xs text-rose-600">Fcfa</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="btn-secondary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Précédent
-              </button>
-              <button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="btn-secondary py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Suivant
-              </button>
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 className="font-bold text-slate-800">Liste des dépenses Dakar</h4>
+                <span className="text-sm font-medium text-slate-500">{filteredExpensesDakar.length} dépense{filteredExpensesDakar.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-100/80 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left rounded-tl-lg">Titre</th>
+                      <th className="px-4 py-3">Catégorie</th>
+                      <th className="px-4 py-3 text-center">Date</th>
+                      <th className="px-4 py-3 text-right">Montant</th>
+                      <th className="px-4 py-3 text-center">Statut</th>
+                      <th className="px-4 py-3 text-center rounded-tr-lg w-28">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {currentDakar.length > 0 ? currentDakar.map((expense) => (
+                      <tr key={expense.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-800">{expense.title || 'Sans titre'}</div>
+                          {expense.supplier && <div className="text-xs text-slate-500 mt-0.5">{expense.supplier}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${getCategoryColor(expense.category)}`}>{getCategoryLabel(expense.category)}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-slate-600">{formatDate(expense.date)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(parseFloat(expense.amount) || Number(expense.amount) || 0)} Fcfa</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${getStatusColor(expense.status)}`}>{expense.status === 'PAYE' ? 'Payé' : 'Non payé'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button type="button" onClick={() => handleViewExpense(expense)} className="p-2 text-primary-600 hover:bg-primary-100 rounded-lg transition-colors" title="Voir"><Eye className="w-4 h-4" /></button>
+                            <Link to={`/expenses/${expense.id}/edit`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors inline-flex" title="Modifier"><Edit className="w-4 h-4" /></Link>
+                            <button type="button" onClick={() => setExpenseToDelete(expense)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-12 text-center">
+                          <div className="flex flex-col items-center gap-3 text-slate-500">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center"><DollarSign className="w-7 h-7 text-slate-400" /></div>
+                            <p className="font-medium text-slate-600">Aucune dépense pour Dakar</p>
+                            <Link to="/expenses/new?site=DAKAR" className="text-sm font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1">Ajouter une dépense <Plus className="w-4 h-4" /></Link>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {totalPagesDakar > 1 && (
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Page {pageDakar} sur {totalPagesDakar}</span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setPageDakar(p => Math.max(1, p - 1))} disabled={pageDakar === 1} className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Précédent</button>
+                    <button type="button" onClick={() => setPageDakar(p => Math.min(totalPagesDakar, p + 1))} disabled={pageDakar === totalPagesDakar} className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Suivant</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Bloc Mbour */}
+        {(siteFilter === 'all' || siteFilter === 'MBOUR') && (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4 bg-gradient-to-r from-primary-50 to-slate-50 border-b border-slate-100 flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-primary-600" />
+                </div>
+                <h3 className="text-lg font-black text-slate-800">Mbour</h3>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl bg-emerald-50 p-4 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Wallet className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-emerald-800">Approvisionnement</span>
+                    </div>
+                    <p className="text-lg font-black text-emerald-700">{formatCurrency(statsMbour.appro)}</p>
+                    <p className="text-xs text-emerald-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-primary-50 p-4 border border-primary-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-primary-600" />
+                      <span className="text-xs font-bold text-primary-800">Dépenses</span>
+                    </div>
+                    <p className="text-lg font-black text-primary-700">{formatCurrency(statsMbour.depenses)}</p>
+                    <p className="text-xs text-primary-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingDown className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-blue-800">Restant Appro</span>
+                    </div>
+                    <p className="text-lg font-black text-blue-700">{formatCurrency(statsMbour.restant)}</p>
+                    <p className="text-xs text-blue-600">Fcfa</p>
+                  </div>
+                  <div className="rounded-xl bg-rose-50 p-4 border border-rose-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span className="text-xs font-bold text-rose-800">Non appro.</span>
+                    </div>
+                    <p className="text-lg font-black text-rose-700">{formatCurrency(statsMbour.nonAppro)}</p>
+                    <p className="text-xs text-rose-600">Fcfa</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 className="font-bold text-slate-800">Liste des dépenses Mbour</h4>
+                <span className="text-sm font-medium text-slate-500">{filteredExpensesMbour.length} dépense{filteredExpensesMbour.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-100/80 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left rounded-tl-lg">Titre</th>
+                      <th className="px-4 py-3">Catégorie</th>
+                      <th className="px-4 py-3 text-center">Date</th>
+                      <th className="px-4 py-3 text-right">Montant</th>
+                      <th className="px-4 py-3 text-center">Statut</th>
+                      <th className="px-4 py-3 text-center rounded-tr-lg w-28">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {currentMbour.length > 0 ? currentMbour.map((expense) => (
+                      <tr key={expense.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-800">{expense.title || 'Sans titre'}</div>
+                          {expense.supplier && <div className="text-xs text-slate-500 mt-0.5">{expense.supplier}</div>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${getCategoryColor(expense.category)}`}>{getCategoryLabel(expense.category)}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-slate-600">{formatDate(expense.date)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(parseFloat(expense.amount) || Number(expense.amount) || 0)} Fcfa</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${getStatusColor(expense.status)}`}>{expense.status === 'PAYE' ? 'Payé' : 'Non payé'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button type="button" onClick={() => handleViewExpense(expense)} className="p-2 text-primary-600 hover:bg-primary-100 rounded-lg transition-colors" title="Voir"><Eye className="w-4 h-4" /></button>
+                            <Link to={`/expenses/${expense.id}/edit`} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors inline-flex" title="Modifier"><Edit className="w-4 h-4" /></Link>
+                            <button type="button" onClick={() => setExpenseToDelete(expense)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-12 text-center">
+                          <div className="flex flex-col items-center gap-3 text-slate-500">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center"><DollarSign className="w-7 h-7 text-slate-400" /></div>
+                            <p className="font-medium text-slate-600">Aucune dépense pour Mbour</p>
+                            <Link to="/expenses/new?site=MBOUR" className="text-sm font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1">Ajouter une dépense <Plus className="w-4 h-4" /></Link>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {totalPagesMbour > 1 && (
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Page {pageMbour} sur {totalPagesMbour}</span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setPageMbour(p => Math.max(1, p - 1))} disabled={pageMbour === 1} className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Précédent</button>
+                    <button type="button" onClick={() => setPageMbour(p => Math.min(totalPagesMbour, p + 1))} disabled={pageMbour === totalPagesMbour} className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">Suivant</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -536,6 +799,12 @@ const Expenses = () => {
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-800 mb-1">Site</label>
+                <span className="px-3 py-1 rounded-full text-xs font-bold inline-block bg-slate-100 text-slate-700">
+                  {selectedExpense.site === 'MBOUR' ? 'Mbour' : selectedExpense.site === 'DAKAR' ? 'Dakar' : '—'}
+                </span>
+              </div>
               <div>
                 <label className="block text-sm font-bold text-slate-800 mb-1">Catégorie</label>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${getCategoryColor(selectedExpense.category)}`}>
@@ -612,6 +881,72 @@ const Expenses = () => {
                 </div>
               )}
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Approvisionnement — enregistrer le montant pour le site sélectionné */}
+      {showApproModal && (
+        <Modal
+          isOpen={showApproModal}
+          onClose={() => setShowApproModal(false)}
+          title="Approvisionnement"
+          size="md"
+        >
+          <div className="space-y-4">
+            <p className="text-slate-600 text-sm">
+              {siteFilter === 'DAKAR' && 'Montant d\'approvisionnement pour le site Dakar.'}
+              {siteFilter === 'MBOUR' && 'Montant d\'approvisionnement pour le site Mbour.'}
+              {siteFilter === 'all' && 'Montant d\'approvisionnement (sera appliqué aux deux sites).'}
+            </p>
+            <div>
+              <label htmlFor="appro-montant" className="block text-sm font-bold text-slate-800 mb-1">Montant (Fcfa)</label>
+              <input
+                id="appro-montant"
+                type="text"
+                inputMode="decimal"
+                value={approInputValue}
+                onChange={(e) => setApproInputValue(e.target.value)}
+                placeholder="0"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl text-lg font-semibold"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setShowApproModal(false)} className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50">
+                Annuler
+              </button>
+              <button type="button" onClick={submitApproModal} className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700">
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Historique des approvisionnements — comme sur la photo */}
+      {showHistoriqueModal && (
+        <Modal
+          isOpen={showHistoriqueModal}
+          onClose={() => setShowHistoriqueModal(false)}
+          title="Historique des approvisionnements"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <History className="w-8 h-8 text-slate-500 shrink-0" />
+              <div>
+                <p className="font-bold text-slate-800">Dakar</p>
+                <p className="text-2xl font-black text-emerald-600">{formatCurrency(approDakar)} Fcfa</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <History className="w-8 h-8 text-slate-500 shrink-0" />
+              <div>
+                <p className="font-bold text-slate-800">Mbour</p>
+                <p className="text-2xl font-black text-emerald-600">{formatCurrency(approMbour)} Fcfa</p>
+              </div>
+            </div>
+            <p className="text-slate-500 text-sm">Modifiez les montants via le bouton « Approvisionnement » en haut de page.</p>
           </div>
         </Modal>
       )}

@@ -12,6 +12,7 @@ const UserForm = ({ user, onClose, onSave }) => {
     { path: '/interventions', label: 'Interventions' },
     { path: '/installations', label: 'Installations' },
     { path: '/clients', label: 'Clients' },
+    { path: '/agrement', label: 'Agrément' },
     { path: '/quotes', label: 'Devis' },
     { path: '/invoices', label: 'Factures' },
     { path: '/proforma-invoices', label: 'Pro Forma' },
@@ -24,14 +25,16 @@ const UserForm = ({ user, onClose, onSave }) => {
     switch (role) {
       case 'admin':
         return ['/', '/products', '/stock', '/stock-movements', '/interventions', 
-                '/installations', '/clients', '/quotes', '/invoices', 
+                '/installations', '/clients', '/agrement', '/quotes', '/invoices', 
                 '/proforma-invoices', '/expenses', '/users'];
       case 'technicien':
         return ['/', '/interventions'];
       case 'commercial':
-        return ['/clients', '/interventions'];
+        return ['/clients', '/agrement', '/interventions'];
+      case 'pointage_only':
+        return ['/', '/pointage'];
       default:
-        return ['/clients', '/interventions'];
+        return ['/clients', '/agrement', '/interventions'];
     }
   };
 
@@ -330,6 +333,7 @@ const UserForm = ({ user, onClose, onSave }) => {
           <option value="admin">Administrateur</option>
           <option value="technicien">Technicien</option>
           <option value="commercial">Commercial</option>
+          <option value="pointage_only">Administration (pointage seul)</option>
         </select>
         {errors.role_write && <p className="mt-1 text-sm text-red-600">{errors.role_write}</p>}
         <p className="mt-1 text-xs text-gray-500">

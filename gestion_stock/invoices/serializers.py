@@ -211,8 +211,11 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 invoice.delete()
                 raise serializers.ValidationError(
                     {
-                        'items': f"Stock insuffisant pour le produit {product.name}. "
-                                f"Stock disponible: {product.quantity}, demandé: {quantity}"
+                        'items': (
+                            f"Rupture de stock pour le produit « {product.name} ». "
+                            f"Quantité disponible : {product.quantity} — Quantité demandée : {quantity}. "
+                            f"Veuillez réapprovisionner ou ajuster la commande."
+                        )
                     }
                 )
 

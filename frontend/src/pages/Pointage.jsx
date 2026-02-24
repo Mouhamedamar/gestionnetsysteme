@@ -69,6 +69,35 @@ const Pointage = () => {
   const [filterDateBefore, setFilterDateBefore] = useState('');
   const [searchPointage, setSearchPointage] = useState('');
   const pointageTableRef = React.useRef(null);
+  const [showLateJustificationModal, setShowLateJustificationModal] = useState(false);
+  const [lateJustificationText, setLateJustificationText] = useState('');
+  const [pendingPointage, setPendingPointage] = useState(null);
+  const [submittingLateJustification, setSubmittingLateJustification] = useState(false);
+  const [rapportQuotidienOpen, setRapportQuotidienOpen] = useState(false);
+  const [rapportQuotidienData, setRapportQuotidienData] = useState(null);
+  const [rapportQuotidienLoading, setRapportQuotidienLoading] = useState(false);
+
+  const fetchRapportQuotidien = useCallback(async () => {
+    setRapportQuotidienLoading(true);
+    setRapportQuotidienData(null);
+    setRapportQuotidienOpen(true);
+    try {
+      const response = await apiCall('/api/pointages/rapport-quotidien/', { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        setRapportQuotidienData(data);
+      } else {
+        const err = await response.json().catch(() => ({}));
+        showNotification(err.detail || 'Impossible de charger le rapport.', 'error');
+        setRapportQuotidienOpen(false);
+      }
+    } catch (e) {
+      showNotification('Erreur lors du chargement du rapport.', 'error');
+      setRapportQuotidienOpen(false);
+    } finally {
+      setRapportQuotidienLoading(false);
+    }
+  }, [apiCall, showNotification]);
 
   const buildPointagesUrl = useCallback(() => {
     const params = new URLSearchParams();
@@ -302,6 +331,18 @@ const Pointage = () => {
           setSubmitting(null);
           return;
         }
+        if (checkType === 'entree') {
+          const now = new Date();
+          const hour = now.getHours();
+          const minute = now.getMinutes();
+          if (hour > 9 || (hour === 9 && minute >= 15)) {
+            setPendingPointage({ checkType, zone: predefinedZone, lat, lng });
+            setLateJustificationText('');
+            setShowLateJustificationModal(true);
+            setSubmitting(null);
+            return;
+          }
+        }
         await submitPointage(checkType, predefinedZone, lat, lng);
         setSubmitting(null);
       },
@@ -313,8 +354,9 @@ const Pointage = () => {
     );
   };
 
-  const submitPointage = async (checkType, selectedZone, latitude, longitude) => {
+  const submitPointage = async (checkType, selectedZone, latitude, longitude, note) => {
     const body = { check_type: checkType };
+    if (typeof note === 'string' && note.trim()) body.note = note.trim();
     if (!isAdmin && latitude != null && longitude != null) {
       body.latitude = latitude;
       body.longitude = longitude;
@@ -372,6 +414,30 @@ const Pointage = () => {
     } else {
       const data = await response.json().catch(() => ({}));
       showNotification(data.detail || data.error || 'Erreur', 'error');
+    }
+  };
+
+  const handleCloseLateJustificationModal = () => {
+    setShowLateJustificationModal(false);
+    setLateJustificationText('');
+    setPendingPointage(null);
+  };
+
+  const handleSubmitLateJustification = async () => {
+    const text = (lateJustificationText || '').trim();
+    if (!text || !pendingPointage) return;
+    setSubmittingLateJustification(true);
+    try {
+      await submitPointage(
+        pendingPointage.checkType,
+        pendingPointage.zone,
+        pendingPointage.lat,
+        pendingPointage.lng,
+        text
+      );
+      handleCloseLateJustificationModal();
+    } finally {
+      setSubmittingLateJustification(false);
     }
   };
 
@@ -498,12 +564,25 @@ const Pointage = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
-      <PageHeader
-        title="Pointage"
-        subtitle={isAdmin ? 'Vue de tous les pointages' : 'Enregistrez vos entrées et sorties'}
-        badge="Horaires"
-        icon={Clock}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageHeader
+          title="Pointage"
+          subtitle={isAdmin ? 'Vue de tous les pointages' : 'Enregistrez vos entrées et sorties'}
+          badge="Horaires"
+          icon={Clock}
+        />
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={fetchRapportQuotidien}
+            disabled={rapportQuotidienLoading}
+            className="btn-primary flex items-center gap-2"
+          >
+            <FileText className="w-5 h-5" />
+            {rapportQuotidienLoading ? 'Chargement…' : 'Rapport du jour'}
+          </button>
+        )}
+      </div>
 
       {!isAdmin && (
         <>
@@ -1089,6 +1168,113 @@ const Pointage = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={showLateJustificationModal}
+        onClose={handleCloseLateJustificationModal}
+        title="Justification du retard"
+      >
+        <div className="space-y-4">
+          <p className="text-slate-600">
+            Vous pointez en entrée après 9h15. Merci de justifier votre retard. Cette justification apparaîtra dans le rapport de présence envoyé aux responsables.
+          </p>
+          <div>
+            <label htmlFor="late-justification" className="block text-sm font-medium text-slate-700 mb-1">
+              Justification (obligatoire)
+            </label>
+            <textarea
+              id="late-justification"
+              value={lateJustificationText}
+              onChange={(e) => setLateJustificationText(e.target.value)}
+              placeholder="Ex. : embouteillage, rendez-vous médical..."
+              rows={4}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              disabled={!!submittingLateJustification}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleCloseLateJustificationModal}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              disabled={!!submittingLateJustification}
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitLateJustification}
+              disabled={!lateJustificationText.trim() || !!submittingLateJustification}
+              className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submittingLateJustification ? 'Envoi…' : 'Envoyer le pointage'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={rapportQuotidienOpen}
+        onClose={() => setRapportQuotidienOpen(false)}
+        title={rapportQuotidienData ? `Rapport du jour — ${rapportQuotidienData.date_formatted}` : 'Rapport du jour'}
+      >
+        {rapportQuotidienLoading && !rapportQuotidienData && (
+          <div className="py-8 flex justify-center"><Loader /></div>
+        )}
+        {rapportQuotidienData && !rapportQuotidienLoading && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">Période analysée : {rapportQuotidienData.period}</p>
+            <div className="flex flex-wrap gap-4">
+              <div className="px-4 py-2 rounded-lg bg-emerald-100 text-emerald-800 font-bold">
+                Présents : {rapportQuotidienData.summary.nb_presents}
+              </div>
+              <div className="px-4 py-2 rounded-lg bg-amber-100 text-amber-800 font-bold">
+                Retards : {rapportQuotidienData.summary.nb_retards}
+              </div>
+              <div className="px-4 py-2 rounded-lg bg-red-100 text-red-800 font-bold">
+                Absents : {rapportQuotidienData.summary.nb_absents}
+              </div>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="table-header text-left">Nom</th>
+                    <th className="table-header text-left">Statut</th>
+                    <th className="table-header text-left">Heure d&apos;arrivée</th>
+                    <th className="table-header text-left">Heure de sortie</th>
+                    <th className="table-header text-left">Durée</th>
+                    <th className="table-header text-left">Justificatif</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rapportQuotidienData.rows.length === 0 ? (
+                    <tr><td colSpan="6" className="p-4 text-center text-slate-500">Aucun employé</td></tr>
+                  ) : (
+                    rapportQuotidienData.rows.map((row, idx) => (
+                      <tr key={idx} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="p-2">{row.nom}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            row.statut === 'Présent' ? 'bg-emerald-100 text-emerald-800' :
+                            row.statut === 'Retard' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {row.statut}
+                          </span>
+                        </td>
+                        <td className="p-2">{row.heure_arrivee}</td>
+                        <td className="p-2">{row.heure_sortie}</td>
+                        <td className="p-2">{row.duree}</td>
+                        <td className="p-2">{row.justificatif}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Modal>

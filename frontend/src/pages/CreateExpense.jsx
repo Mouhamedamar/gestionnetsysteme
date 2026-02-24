@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { DollarSign, ArrowLeft, Save, X, Upload, Image as ImageIcon } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -8,9 +8,12 @@ import { API_BASE_URL } from '../config';
 const CreateExpense = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { expenses, addExpense, updateExpense, showNotification, fetchExpenses } = useApp();
   const isEditMode = !!id;
-  
+  const siteFromUrl = searchParams.get('site');
+  const initialSite = (siteFromUrl === 'MBOUR' || siteFromUrl === 'DAKAR') ? siteFromUrl : 'DAKAR';
+
   const [expenseData, setExpenseData] = useState({
     title: '',
     description: '',
@@ -18,6 +21,7 @@ const CreateExpense = () => {
     amount: '',
     date: new Date().toISOString().slice(0, 16),
     status: 'NON_PAYE',
+    site: initialSite,
     supplier: '',
     receipt_number: '',
     justification_image: null
@@ -25,6 +29,12 @@ const CreateExpense = () => {
 
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isEditMode && (siteFromUrl === 'MBOUR' || siteFromUrl === 'DAKAR')) {
+      setExpenseData(prev => ({ ...prev, site: siteFromUrl }));
+    }
+  }, [isEditMode, siteFromUrl]);
 
   useEffect(() => {
     if (isEditMode && expenses.length > 0) {
@@ -38,6 +48,7 @@ const CreateExpense = () => {
           amount: expense.amount || '',
           date: expenseDate,
           status: expense.status || 'NON_PAYE',
+          site: expense.site || 'DAKAR',
           supplier: expense.supplier || '',
           receipt_number: expense.receipt_number || '',
           justification_image: null
@@ -139,6 +150,7 @@ const CreateExpense = () => {
         dataToSend.append('amount', amount.toString());
         dataToSend.append('date', expenseDate);
         dataToSend.append('status', expenseData.status);
+        dataToSend.append('site', expenseData.site || 'DAKAR');
         if (expenseData.supplier) {
           dataToSend.append('supplier', expenseData.supplier);
         }
@@ -161,6 +173,7 @@ const CreateExpense = () => {
           amount: amount,
           date: expenseDate,
           status: expenseData.status,
+          site: expenseData.site || 'DAKAR',
           supplier: expenseData.supplier || '',
           receipt_number: expenseData.receipt_number || ''
         };
@@ -278,6 +291,19 @@ const CreateExpense = () => {
               >
                 <option value="NON_PAYE">Non payé</option>
                 <option value="PAYE">Payé</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Site *</label>
+              <select
+                value={expenseData.site}
+                onChange={(e) => setExpenseData({...expenseData, site: e.target.value})}
+                required
+                className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-slate-900 font-medium"
+              >
+                <option value="DAKAR">Dakar</option>
+                <option value="MBOUR">Mbour</option>
               </select>
             </div>
 

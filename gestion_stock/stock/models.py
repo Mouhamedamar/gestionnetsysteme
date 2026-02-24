@@ -7,27 +7,44 @@ from products.models import Product
 
 class StockNotificationRecipient(models.Model):
     """
-    Responsables qui reçoivent les alertes SMS lors des mouvements de stock.
+    Responsables qui reçoivent les alertes SMS et/ou email lors des mouvements de stock.
     """
     name = models.CharField(max_length=120, verbose_name="Nom du responsable")
-    phone = models.CharField(max_length=20, verbose_name="Numéro de téléphone")
+    phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Numéro de téléphone")
+    email = models.EmailField(blank=True, default="", verbose_name="Adresse email")
     is_active = models.BooleanField(default=True, verbose_name="Actif")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Responsable SMS Stock"
-        verbose_name_plural = "Responsables SMS Stock"
+        verbose_name = "Responsable notifications stock"
+        verbose_name_plural = "Responsables notifications stock"
         ordering = ['name']
 
     def __str__(self):
-        return f"{self.name} - {self.phone}"
+        parts = [self.name]
+        if self.phone:
+            parts.append(self.phone)
+        if self.email:
+            parts.append(self.email)
+        return " - ".join(parts)
 
 
 class StockAlertSettings(models.Model):
     """
-    Paramètres d'alerte stock (seuil minimal, etc.).
+    Paramètres d'alerte stock (seuil minimal, rappel automatique, etc.).
     """
     alert_threshold = models.IntegerField(default=10, verbose_name="Seuil d'alerte (unités)")
+    # Rappel automatique stock faible : 0 = désactivé, 1/2/3/7 = rappeler tous les X jours
+    reminder_interval_days = models.IntegerField(
+        default=0,
+        verbose_name="Rappel automatique (jours)",
+        help_text="0 = désactivé. 1, 2, 3 ou 7 = envoyer un rappel stock faible tous les X jours.",
+    )
+    last_reminder_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Dernier rappel envoyé le",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

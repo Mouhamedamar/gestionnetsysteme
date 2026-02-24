@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -11,6 +11,7 @@ import { formatCurrency } from '../utils/formatCurrency';
 
 const CreateQuote = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { clients, products, addQuote, showNotification, fetchClients, addClient } = useApp();
   
   const [quoteData, setQuoteData] = useState({
@@ -40,6 +41,22 @@ const CreateQuote = () => {
       console.error('Erreur lors du chargement des clients:', err);
     });
   }, [fetchClients]);
+
+  // Pré-remplir depuis l'URL (depuis la page prospect)
+  useEffect(() => {
+    const clientName = searchParams.get('client_name');
+    const clientEmail = searchParams.get('client_email');
+    const clientPhone = searchParams.get('client_phone');
+    if (clientName || clientEmail || clientPhone) {
+      setQuoteData((prev) => ({
+        ...prev,
+        client_id: null,
+        client_name: decodeURIComponent(clientName || ''),
+        client_email: decodeURIComponent(clientEmail || ''),
+        client_phone: decodeURIComponent(clientPhone || ''),
+      }));
+    }
+  }, [searchParams]);
 
   // Gérer la création d'un nouveau client
   const handleSaveClient = async (id, clientData) => {

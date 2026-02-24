@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import F
 from .models import StockMovement, StockNotificationRecipient, StockAlertSettings
 from .serializers import (
     StockMovementSerializer,
@@ -9,8 +10,9 @@ from .serializers import (
     StockNotificationRecipientSerializer,
     StockAlertSettingsSerializer,
 )
-from .notifications import _normalize_phone, _send_sms
+from .notifications import _normalize_phone, _send_sms, send_low_stock_reminders
 from products.permissions import IsAdminUser as ProductsIsAdminUser
+from products.models import Product
 
 
 class StockMovementViewSet(viewsets.ModelViewSet):
@@ -85,10 +87,10 @@ class StockNotificationRecipientViewSet(viewsets.ModelViewSet):
     def send_test_sms(self, request, pk=None):
         """Envoie un SMS de test au responsable."""
         recipient = self.get_object()
-        phone = _normalize_phone(recipient.phone)
+        phone = _normalize_phone(recipient.phone or '')
         if not phone:
             return Response(
-                {'error': 'Numéro de téléphone invalide'},
+                {'error': 'Numéro de téléphone invalide ou manquant'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         body = f"Test SMS Stock - {recipient.name}. Configuration OK."
@@ -97,6 +99,103 @@ class StockNotificationRecipientViewSet(viewsets.ModelViewSet):
             {'status': 'SMS envoyé' if ok else 'API Orange non configurée (voir logs)'},
             status=status.HTTP_200_OK
         )
+
+    @action(detail=True, methods=['post'])
+    def send_test_email(self, request, pk=None):
+        """Envoie un email de test au responsable."""
+        from django.core.mail import send_mail
+        from django.conf import settings as django_settings
+
+        recipient = self.get_object()
+        email = (recipient.email or '').strip()
+        if not email:
+            return Response(
+                {'error': 'Adresse email manquante ou invalide'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        subject = '[Stock] Test - Configuration notifications'
+        body = f"Test email Stock - {recipient.name}.\n\nConfiguration OK.\n\n— Gestion Stock"
+        try:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            return Response({'status': 'Email envoyé'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': f'Erreur envoi email: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+@api_view(['GET'])
+@permission_classes([ProductsIsAdminUser])
+def stock_low_stock_reminders_list(request):
+    """Liste des produits en stock faible (quantity <= alert_threshold)."""
+    qs = Product.objects.filter(
+        deleted_at__isnull=True,
+        is_active=True,
+        quantity__lte=F('alert_threshold')
+    ).order_by('quantity')
+    data = []
+    for p in qs:
+        item = {
+            'id': p.id,
+            'name': p.name,
+            'quantity': p.quantity,
+            'alert_threshold': p.alert_threshold,
+        }
+        if p.photo:
+            try:
+                item['image_url'] = request.build_absolute_uri(p.photo.url)
+            except Exception:
+                item['image_url'] = None
+        else:
+            item['image_url'] = None
+        data.append(item)
+    return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([ProductsIsAdminUser])
+def stock_low_stock_reminders_send(request):
+    """Envoie les rappels (SMS + email) aux responsables pour les produits en stock faible."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    settings_obj = StockAlertSettings.get_settings()
+    interval = getattr(settings_obj, 'reminder_interval_days', 0) or 0
+    last_sent = getattr(settings_obj, 'last_reminder_sent_at', None)
+    if interval > 0 and last_sent:
+        next_due = (last_sent + timedelta(days=interval)).date()
+        today = timezone.now().date()
+        if today < next_due:
+            return Response(
+                {
+                    'detail': f"Prochain envoi de rappel possible le {next_due.strftime('%d/%m/%Y')} (jour J).",
+                    'next_due': next_due.isoformat(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    qs = Product.objects.filter(
+        deleted_at__isnull=True,
+        is_active=True,
+        quantity__lte=F('alert_threshold')
+    )
+    nb_sms, nb_emails = send_low_stock_reminders(qs)
+    # Mettre à jour la date du dernier rappel (pour rappel automatique)
+    settings_obj.last_reminder_sent_at = timezone.now()
+    settings_obj.save(update_fields=['last_reminder_sent_at'])
+    return Response({
+        'status': 'ok',
+        'nb_sms': nb_sms,
+        'nb_emails': nb_emails,
+        'message': f'Rappels envoyés : {nb_sms} SMS, {nb_emails} email(s).',
+    })
 
 
 @api_view(['GET', 'PATCH'])

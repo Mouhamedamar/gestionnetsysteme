@@ -11,6 +11,7 @@ from .serializers import (
     InvoiceItemCreateSerializer
 )
 from products.permissions import IsAdminUser
+from products.models import Product
 from .permissions import IsAdminOrCommercial
 
 
@@ -33,6 +34,32 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update']:
             return InvoiceUpdateSerializer
         return InvoiceSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Crée une facture et ajoute un avertissement si des produits sont en faible stock."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invoice = serializer.save()
+        response_data = InvoiceSerializer(invoice).data
+
+        # Pour les factures définitives : détecter les produits en faible stock après sortie
+        if not invoice.is_proforma:
+            seen_ids = set()
+            low_stock_list = []
+            for item in invoice.invoice_items.filter(deleted_at__isnull=True).select_related('product'):
+                product = Product.objects.filter(pk=item.product_id).first()
+                if product and product.id not in seen_ids and product.quantity <= product.alert_threshold:
+                    seen_ids.add(product.id)
+                    low_stock_list.append({
+                        'name': product.name,
+                        'quantity': product.quantity,
+                        'alert_threshold': product.alert_threshold,
+                    })
+            if low_stock_list:
+                response_data['low_stock_warning'] = low_stock_list
+
+        headers = self.get_success_headers(response_data)
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     def get_queryset(self):
         """Filtre les factures supprimées"""

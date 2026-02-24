@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import Login from './pages/Login';
@@ -8,8 +9,13 @@ import DashboardTechnicien from './pages/DashboardTechnicien';
 import DashboardCommercial from './pages/DashboardCommercial';
 import Products from './pages/Products';
 import Clients from './pages/Clients';
+import ClientsBlacklist from './pages/ClientsBlacklist';
+import Prospects from './pages/Prospects';
+import ProspectDetail from './pages/ProspectDetail';
+import ClientDetail from './pages/ClientDetail';
 import StockMovements from './pages/StockMovements';
 import StockNotifications from './pages/StockNotifications';
+import StockLowStockReminders from './pages/StockLowStockReminders';
 import Stock from './pages/Stock';
 import Invoices from './pages/Invoices';
 import Quotes from './pages/Quotes';
@@ -27,6 +33,7 @@ import Profile from './pages/Profile';
 import Users from './pages/Users';
 import ZoneDeTravail from './pages/ZoneDeTravail';
 import Pointage from './pages/Pointage';
+import Agrement from './pages/Agrement';
 import Layout from './components/Layout';
 import Notification from './components/Notification';
 import InstallationCheck from './components/InstallationCheck';
@@ -36,23 +43,28 @@ const PrivateRoute = ({ children }) => {
   return loggedIn ? children : <Navigate to="/login" />;
 };
 
-const AppRoutes = () => {
-  const { notification, setNotification, user } = useApp();
+// Défini au niveau du module pour éviter démontage/remontage à chaque mise à jour du contexte (sinon boucle infinie)
+function DashboardRouter() {
+  const { user } = useApp();
+  const role = user?.role || 'admin';
+  switch (role) {
+    case 'admin':
+      return <DashboardAdmin />;
+    case 'technicien':
+      return <DashboardTechnicien />;
+    case 'commercial':
+      return <DashboardCommercial />;
+    case 'pointage_only':
+      return <DashboardTechnicien />;
+    default:
+      return <DashboardAdmin />;
+  }
+}
 
-  // Composant pour router vers le bon dashboard selon le rôle
-  const DashboardRouter = () => {
-    const role = user?.role || 'admin';
-    switch (role) {
-      case 'admin':
-        return <DashboardAdmin />;
-      case 'technicien':
-        return <DashboardTechnicien />;
-      case 'commercial':
-        return <DashboardCommercial />;
-      default:
-        return <DashboardAdmin />;
-    }
-  };
+const AppRoutes = () => {
+  const { notification, setNotification } = useApp();
+
+  const handleCloseNotification = useCallback(() => setNotification(null), [setNotification]);
 
   return (
     <>
@@ -69,10 +81,15 @@ const AppRoutes = () => {
         >
           <Route index element={<DashboardRouter />} />
           <Route path="products" element={<Products />} />
+          <Route path="prospects" element={<Prospects />} />
+          <Route path="prospects/:id" element={<ProspectDetail />} />
           <Route path="clients" element={<Clients />} />
+          <Route path="clients/:id" element={<ClientDetail />} />
+          <Route path="clients/blacklist" element={<ClientsBlacklist />} />
           <Route path="stock" element={<Stock />} />
           <Route path="stock-movements" element={<StockMovements />} />
           <Route path="stock-notifications" element={<StockNotifications />} />
+          <Route path="stock-reminders" element={<StockLowStockReminders />} />
           <Route path="interventions" element={<Interventions />} />
           <Route path="installations" element={<Installations />} />
           <Route path="installations/rappels-paiement" element={<InstallationPaymentReminders />} />
@@ -90,6 +107,7 @@ const AppRoutes = () => {
           <Route path="users" element={<Users />} />
           <Route path="zone-de-travail" element={<ZoneDeTravail />} />
           <Route path="pointage" element={<Pointage />} />
+          <Route path="agrement" element={<Agrement />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>
@@ -97,7 +115,7 @@ const AppRoutes = () => {
         <Notification
           message={notification.message}
           type={notification.type}
-          onClose={() => setNotification(null)}
+          onClose={handleCloseNotification}
         />
       )}
     </>

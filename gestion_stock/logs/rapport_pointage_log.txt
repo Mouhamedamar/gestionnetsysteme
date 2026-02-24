@@ -1,0 +1,38 @@
+ 
+[20/02/2026 11:53:39,96] Demarrage envoi rapport pointage 
+reportlab non installï¿½ : piï¿½ce jointe PDF non gï¿½nï¿½rï¿½e.
+Rapport pointage du 2026-02-20 envoyï¿½ aux responsables (0 entrï¿½e(s), 0 prï¿½sent(s), 6 absent(s)).
+[20/02/2026 11:53:43,72] Fin 
+ 
+[20/02/2026 12:33:55,67] Demarrage envoi rapport pointage 
+reportlab non installï¿½ : piï¿½ce jointe PDF non gï¿½nï¿½rï¿½e.
+Rapport pointage du 2026-02-20 envoyï¿½ aux responsables (0 entrï¿½e(s), 0 prï¿½sent(s), 6 absent(s)).
+[20/02/2026 12:33:59,31] Fin 
+ 
+[20/02/2026 12:35:00,86] Demarrage envoi rapport pointage 
+reportlab non installï¿½ : piï¿½ce jointe PDF non gï¿½nï¿½rï¿½e.
+Rapport pointage du 2026-02-20 envoyï¿½ aux responsables (0 entrï¿½e(s), 0 prï¿½sent(s), 6 absent(s)).
+[20/02/2026 12:35:04,20] Fin 
+ 
+[20/02/2026 12:36:29,25] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyï¿½ aux responsables (0 entrï¿½e(s), 0 prï¿½sent(s), 6 absent(s)).
+[20/02/2026 12:36:33,70] Fin  
+[20/02/2026 14:57:41,98] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyé aux responsables (0 entrée(s), 0 présent(s), 7 absent(s)).
+[20/02/2026 14:57:46,94] Fin 
+ 
+[20/02/2026 15:06:12,49] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyé aux responsables (0 entrée(s), 0 présent(s), 7 absent(s)).
+[20/02/2026 15:06:15,90] Fin 
+ 
+[20/02/2026 15:08:26,83] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyé aux responsables (0 entrée(s), 0 présent(s), 7 absent(s)).
+[20/02/2026 15:08:30,43] Fin 
+ 
+[20/02/2026 15:13:25,22] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyé aux responsables (0 entrée(s), 0 présent(s), 7 absent(s)).
+[20/02/2026 15:13:28,91] Fin 
+ 
+[20/02/2026 15:16:40,87] Demarrage envoi rapport pointage 
+Rapport pointage du 2026-02-20 envoyé aux responsables (0 entrée(s), 0 présent(s), 7 absent(s)).
+[20/02/2026 15:16:44,19] Fin 

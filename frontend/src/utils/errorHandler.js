@@ -1,3 +1,31 @@
+/** Message affiché quand le backend est injoignable (Failed to fetch, etc.) */
+export const CONNECTION_ERROR_MESSAGE =
+  'Impossible de joindre le serveur. Démarrez le backend Django (python manage.py runserver) sur le port 8000.';
+
+/**
+ * Indique si l'erreur est une erreur de connexion réseau (backend non démarré, CORS, etc.)
+ */
+export function isConnectionError(err) {
+  if (!err) return false;
+  const msg = (err?.message || '').toLowerCase();
+  return (
+    msg === 'failed to fetch' ||
+    msg.includes('network') ||
+    (err?.name === 'TypeError' && msg.includes('fetch'))
+  );
+}
+
+/**
+ * Retourne un message d'erreur adapté pour l'utilisateur (français).
+ * Remplace "Failed to fetch" par un message explicite.
+ */
+export function getErrorMessage(error, defaultMessage = 'Une erreur est survenue') {
+  if (isConnectionError(error)) return CONNECTION_ERROR_MESSAGE;
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  return defaultMessage;
+}
+
 /**
  * Gère et formate les erreurs de l'API de manière cohérente
  * @param {Error|Response} error - L'erreur à traiter
@@ -5,6 +33,7 @@
  * @returns {string} Message d'erreur formaté pour l'utilisateur
  */
 export const handleApiError = async (error, defaultMessage = 'Une erreur est survenue') => {
+  if (isConnectionError(error)) return CONNECTION_ERROR_MESSAGE;
   // Si c'est une Response (erreur HTTP)
   if (error instanceof Response) {
     try {
@@ -48,7 +77,7 @@ export const handleApiError = async (error, defaultMessage = 'Une erreur est sur
   
   // Si c'est une Error
   if (error instanceof Error) {
-    return error.message || defaultMessage;
+    return getErrorMessage(error, defaultMessage);
   }
   
   // Si c'est une chaîne

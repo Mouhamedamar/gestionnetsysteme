@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { FileText, Plus, ArrowLeft, Save, X, UserPlus } from 'lucide-react';
+import { FileText, Plus, ArrowLeft, Save, X, UserPlus, AlertCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import ClientForm from '../components/ClientForm';
@@ -36,6 +36,7 @@ const CreateInvoice = () => {
   const [showClientModal, setShowClientModal] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [pdfAfterCreate, setPdfAfterCreate] = useState({ invoice: null, isProforma: false });
+  const [submitError, setSubmitError] = useState(null);
 
   // Charger les clients au montage
   useEffect(() => {
@@ -82,9 +83,20 @@ const CreateInvoice = () => {
     }
 
     const product = products.find(p => p.id === parseInt(newItem.product));
+    const qty = parseInt(newItem.quantity);
+    const stock = Number(product?.quantity ?? 0);
+    const threshold = Number(product?.alert_threshold ?? 10);
+
+    if (product && stock <= threshold) {
+      showNotification(
+        `Attention : le stock de "${product.name || 'ce produit'}" est faible (${stock} en stock, seuil d'alerte : ${threshold}). Pensez à réapprovisionner.`,
+        'warning'
+      );
+    }
+
     const newInvoiceItem = {
       product: parseInt(newItem.product),
-      quantity: parseInt(newItem.quantity),
+      quantity: qty,
       unit_price: parseFloat(newItem.unit_price),
       product_name: product?.name || ''
     };
@@ -105,8 +117,11 @@ const CreateInvoice = () => {
   };
 
   const handleSubmit = async () => {
+    setSubmitError(null);
     if (!invoiceData.client_name || invoiceData.items.length === 0) {
-      showNotification('Veuillez sélectionner un client et ajouter au moins un article', 'error');
+      const msg = 'Veuillez sélectionner un client et ajouter au moins un article';
+      showNotification(msg, 'error');
+      setSubmitError(msg);
       return;
     }
 
@@ -115,8 +130,10 @@ const CreateInvoice = () => {
       showNotification(isProforma ? 'Facture pro forma créée avec succès' : 'Facture créée avec succès', 'success');
       setCreatedInvoice(created);
     } catch (error) {
+      const message = error?.message || 'Erreur lors de la création de la facture';
       console.error('Erreur lors de la création de la facture:', error);
-      showNotification('Erreur lors de la création de la facture', 'error');
+      showNotification(message, 'error');
+      setSubmitError(message);
     }
   };
 
@@ -272,6 +289,21 @@ const CreateInvoice = () => {
                   <Plus className="w-5 h-5" />
                   Ajouter
                 </button>
+                {newItem.product && (() => {
+                  const p = products.find(pr => pr.id === parseInt(newItem.product));
+                  if (!p) return null;
+                  const stock = Number(p.quantity ?? 0);
+                  const threshold = Number(p.alert_threshold ?? 10);
+                  if (stock > threshold) return null;
+                  return (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span className="text-xs font-medium text-amber-800">
+                        Stock faible : {stock} en stock (seuil : {threshold})
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -359,6 +391,31 @@ const CreateInvoice = () => {
                   <p className="text-slate-500 text-xs mt-1">{invoiceData.items.length} article(s) ajouté(s)</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Message d'erreur visible (ex. rupture de stock) */}
+          {submitError && (
+            <div
+              role="alert"
+              className="mb-6 p-4 rounded-xl bg-rose-50 border-2 border-rose-200 text-rose-800 flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-500 mt-0.5" aria-hidden />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold">La facture n'a pas pu être enregistrée</p>
+                <p className="mt-1 text-sm whitespace-pre-line">{submitError}</p>
+                <p className="mt-2 text-xs text-rose-600">
+                  Vérifiez le stock des articles ou effectuez un réapprovisionnement, puis réessayez.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmitError(null)}
+                className="text-rose-500 hover:text-rose-700 p-1 rounded"
+                aria-label="Fermer le message"
+              >
+                ×
+              </button>
             </div>
           )}
 

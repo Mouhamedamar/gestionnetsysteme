@@ -14,6 +14,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Charger .env depuis le dossier gestion_stock/ (où se trouve manage.py)
 _env_path = BASE_DIR / '.env'
+
+def _load_dotenv_into_environ(path):
+    """Charge les lignes KEY=VALUE du .env dans os.environ (pour fiabilité email, etc.)."""
+    try:
+        if path.exists():
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, _, v = line.partition('=')
+                        k, v = k.strip(), v.strip()
+                        if k and v and k not in os.environ:
+                            os.environ[k] = v
+    except Exception:
+        pass
+
+_load_dotenv_into_environ(_env_path)
+
 try:
     from decouple import Config, RepositoryEnv
     _env_config = Config(RepositoryEnv(str(_env_path))) if _env_path.exists() else Config()
@@ -27,7 +45,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change
 
 # Mode développement local : activer DEBUG et autoriser localhost
 DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'entreprise.louvrier.sn']
 DEFAULT_HOST = os.environ.get('DEFAULT_HOST', 'localhost:8000')
 
 # =============================
@@ -88,7 +106,7 @@ WSGI_APPLICATION = 'gestion_stock.wsgi.application'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'dist'],  # Add dist folder for React build files
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -148,7 +166,15 @@ USE_TZ = True
 # =============================
 # STATIC / MEDIA
 # =============================
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Serve React app static files from dist directory
+STATICFILES_DIRS = [
+    BASE_DIR / 'dist' / 'assets',
+    BASE_DIR / 'dist',
+]
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -223,20 +249,34 @@ SWAGGER_SETTINGS = {
 }
 
 # =============================
-# EMAIL (notifications assignation technicien)
+# EMAIL (notifications stock, assignation technicien, etc.)
 # =============================
-# En dev : emails affichés dans la console (EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend')
-# En prod : configurer SMTP (EMAIL_HOST, EMAIL_PORT, EMAIL_USE_TLS, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
-EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend'
-)
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@gestion-stock.local')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+# Lecture .env + variables d'environnement (au cas où le .env n'est pas chargé par decouple)
+def _email_config(key, default=''):
+    v = env_config(key, default=default)
+    if v == default or (default == '' and not v):
+        v = os.environ.get(key, default)
+    return v
+
+EMAIL_HOST = _email_config('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(_email_config('EMAIL_PORT', '587') or '587')
+EMAIL_USE_TLS = _email_config('EMAIL_USE_TLS', 'true').lower() == 'true'
+EMAIL_USE_SSL = _email_config('EMAIL_USE_SSL', 'false').lower() == 'true'
+EMAIL_HOST_USER = (_email_config('EMAIL_HOST_USER', '') or '').strip()
+EMAIL_HOST_PASSWORD = (_email_config('EMAIL_HOST_PASSWORD', '') or '').strip()
+DEFAULT_FROM_EMAIL = (_email_config('DEFAULT_FROM_EMAIL', '') or '').strip() or 'noreply@gestion-stock.local'
+if not DEFAULT_FROM_EMAIL or DEFAULT_FROM_EMAIL == 'noreply@gestion-stock.local':
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'noreply@gestion-stock.local'
+
+# Utiliser SMTP si backend=smtp OU si identifiants fournis (pour que les emails partent vraiment)
+_email_backend = _email_config('EMAIL_BACKEND', 'console').strip().lower()
+_has_smtp_creds = bool(EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
+if _email_backend == 'smtp' or _has_smtp_creds:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_TIMEOUT = int(_email_config('EMAIL_TIMEOUT', '10') or '10')
 
 # =============================
 # SMS – API Orange (Sénégal) – NETSYSTEME et SSE
@@ -257,5 +297,16 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER = os.environ.get('TWILIO_FROM_NUMBER', '')
 
-# Static files (collectstatic)
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# =============================
+# CRON – Rapport pointage quotidien à 10h00 (GMT/UTC)
+# =============================
+# Nécessite : pip install django-crontab
+# Après déploiement : python manage.py crontab add
+try:
+    import django_crontab  # noqa: F401
+    INSTALLED_APPS.append('django_crontab')
+    CRONJOBS = [
+        ('0 10 * * *', 'django.core.management.call_command', ['send_pointage_daily_report']),
+    ]
+except ImportError:
+    CRONJOBS = []
